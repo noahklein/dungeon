@@ -4,6 +4,7 @@ import "core:os"
 import "core:strings"
 import "core:fmt"
 import "core:time"
+import "core:reflect"
 
 import gl "vendor:OpenGL"
 import glm "core:math/linalg/glsl"
@@ -157,12 +158,35 @@ watch :: proc(s: ^Shader) -> ShaderError {
 setInt :: proc (id: u32, name: cstring, i: i32) {
 	gl.Uniform1i(loc(id, name), i)
 }
+setFloat3 ::  proc (id: u32, name: cstring, f: glm.vec3) {
+    gl.Uniform3f(loc(id, name), f.x, f.y, f.z)
+}
 setFloat4 :: proc (id: u32, name: cstring, f: [4]f32) {
     gl.Uniform4f(loc(id, name), f.x, f.y, f.z, f.w)
-
 }
 setMat4 :: proc(id: u32, name: cstring, mat: [^]f32) {
     gl.UniformMatrix4fv(loc(id, name), 1, false, mat)
+}
+
+setStruct :: proc(id: u32, name: string, $T: typeid, obj: T) {
+	context.allocator = context.temp_allocator
+
+	for field_name in reflect.struct_field_names(T) {
+		field := reflect.struct_field_by_name(T, field_name)
+		val := reflect.struct_field_value(obj, field)
+		
+		name_parts := [?]string{name, ".", field_name}
+		full_name := strings.clone_to_cstring(strings.concatenate(name_parts[:]))
+		switch v in val {
+			case i32:
+				setInt(id, full_name, v)
+			case glm.vec3:
+				setFloat3(id, full_name, v)
+
+		}
+
+	}
+
 }
 
 @(private="file")
