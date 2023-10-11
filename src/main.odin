@@ -84,13 +84,16 @@ main :: proc() {
 
 	gl.Enable(gl.BLEND)
 	// gl.BlendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO)
-
     gl.Enable(gl.DEPTH_TEST)
     gl.DepthFunc(gl.LESS)
 
 	// glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
 	glfw.SetCursorPosCallback(window, mouse_callback)
 	glfw.SetMouseButtonCallback(window, mouse_button_callback)
+
+	// Initialize ImGUI; MUST come after input handlers.
+	debug.gui_init(window)
+	defer debug.gui_shutdown()
 
     // Assets
     cube_obj, cube_obj_err := render.load_obj("assets/cube.obj")
@@ -173,6 +176,9 @@ main :: proc() {
 			render.mesh_draw(&cube_mesh,  model, 0)
 		}
 		render.mesh_flush(&cube_mesh)
+
+
+		debug.gui_render()
 
 		render.watch(&shader)
         glfw.SwapBuffers(window)
