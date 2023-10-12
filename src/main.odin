@@ -10,6 +10,8 @@ import glm "core:math/linalg/glsl"
 
 import "render"
 import "debug"
+import "gui"
+import "game"
 
 
 SCREEN :: [2]i32{1200, 800}
@@ -92,8 +94,8 @@ main :: proc() {
 	glfw.SetMouseButtonCallback(window, mouse_button_callback)
 
 	// Initialize ImGUI; MUST come after input handlers.
-	debug.gui_init(window)
-	defer debug.gui_shutdown()
+	gui.init(window)
+	defer gui.shutdown()
 
     // Assets
     cube_obj, cube_obj_err := render.load_obj("assets/cube.obj")
@@ -109,6 +111,12 @@ main :: proc() {
 		fmt.eprintln("Failed to load shaders/main.glsl:", shader_err)
 		return
 	}
+
+	brick_tex := render.texture_load(0, "assets/brick.jpg")
+	brick_norm_tex := render.texture_load(1, "assets/brick_norm.jpg")
+	ground_tex := render.texture_load(2, "assets/ground.png")
+	ground_norm_tex := render.texture_load(3, "assets/ground_norm.png")
+	textures := [?]i32{0, 1, 2, 3}
 
 	projection := render.projection(cam)
 
@@ -153,6 +161,12 @@ main :: proc() {
 		if glfw.GetKey(window, glfw.KEY_E) == glfw.PRESS {
 			cam.pos -= glm.vec3{0, 1, 0} * cam.speed * dt
 		}
+		if glfw.GetKey(window, glfw.KEY_Z) == glfw.PRESS {
+			cam.pos.y = 1
+		}
+		point_light.ambient = glm.vec3(gui.state.ambient)
+		point_light.diffuse = glm.vec3(gui.state.diffuse)
+		point_light.specular = glm.vec3(gui.state.specular)
 
 		view := render.look_at(cam)
 
@@ -167,18 +181,29 @@ main :: proc() {
 		render.setMat4(shader.id, "view", &view[0, 0])
 		render.setStruct(shader.id, "pointLight", PointLight, point_light)
 		render.setFloat3(shader.id, "camPos", cam.pos);
+		render.setIntArray(shader.id, "textures", len(textures), &textures[0])
 
-		for i in 0..<50 {
-			model := glm.mat4(1)
-			scale := glm.mat4Scale({1, 4, 1})
-			model *= scale
-			model *= glm.mat4Translate({2 * f32(i), 0, 10})
-			render.mesh_draw(&cube_mesh,  model, 0)
+		// gl.ActiveTexture(brick_tex.id)
+		gl.BindTextureUnit(brick_tex.unit, brick_tex.id)
+		gl.BindTextureUnit(brick_norm_tex.unit, brick_norm_tex.id)
+		gl.BindTextureUnit(ground_tex.unit, ground_tex.id)
+		gl.BindTextureUnit(ground_norm_tex.unit, ground_norm_tex.id)
+		for wall in game.world.walls {
+			model := game.entity_model(wall)
+			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 10)
 		}
+		for ground in game.world.grounds {
+			// model := glm.mat4Scale({100, 0.1, 100}) * glm.mat4Translate({0, -1, 0})
+			model := game.entity_model(ground)
+			render.mesh_draw(&cube_mesh, model, ground_tex.unit, 100)
+		}
+
+		// Draw light
+		render.mesh_draw(&cube_mesh, glm.mat4Translate(point_light.pos), brick_tex.unit, 10)
+
 		render.mesh_flush(&cube_mesh)
 
-
-		debug.gui_render()
+		gui.render()
 
 		render.watch(&shader)
         glfw.SwapBuffers(window)
@@ -202,6 +227,7 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 
 	if button == glfw.MOUSE_BUTTON_RIGHT && action == glfw.PRESS {
 		cursor_hidden = !cursor_hidden
+		render.init_mouse = false
 
 		if cursor_hidden {
 			glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)

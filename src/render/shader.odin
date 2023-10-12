@@ -167,6 +167,10 @@ setFloat4 :: proc (id: u32, name: cstring, f: [4]f32) {
 setMat4 :: proc(id: u32, name: cstring, mat: [^]f32) {
     gl.UniformMatrix4fv(loc(id, name), 1, false, mat)
 }
+setIntArray :: proc(id: u32, name: cstring, count: i32, vals: [^]i32) {
+    gl.Uniform1iv(loc(id, name), count, vals)
+}
+
 
 setStruct :: proc(id: u32, name: string, $T: typeid, obj: T) {
 	context.allocator = context.temp_allocator

@@ -17,7 +17,7 @@ Vertex :: struct {
 }
 
 Instance :: struct {
-    // tex_unit: u32,
+    texture: [2]u32,
     transform: matrix[4, 4]f32,
 }
 
@@ -54,13 +54,13 @@ mesh_init :: proc(obj: Obj) -> Mesh {
     // Instance buffer
     gl.CreateBuffers(1, &m.ibo)
     gl.BindBuffer(gl.ARRAY_BUFFER, m.ibo)
-    gl.BufferData(gl.ARRAY_BUFFER, MAX_INSTANCES * size_of(Instance), nil, gl.STREAM_DRAW)
-    // gl.EnableVertexAttribArray(3)
-    // gl.VertexAttribIPointer(3, 1, gl.UNSIGNED_INT, size_of(Instance), offset_of(Instance, tex_unit))
-    // gl.VertexAttribDivisor(3, 1)
+    gl.BufferData(gl.ARRAY_BUFFER, MAX_INSTANCES * size_of(Instance), nil, gl.DYNAMIC_DRAW)
+    gl.EnableVertexAttribArray(3)
+    gl.VertexAttribIPointer(3, 2, gl.UNSIGNED_INT, size_of(Instance), offset_of(Instance, texture))
+    gl.VertexAttribDivisor(3, 1)
 
     for i in 0..<4 {
-        id := u32(3 + i)
+        id := u32(4 + i)
         gl.EnableVertexAttribArray(id)
         offset := offset_of(Instance, transform) + (uintptr(i * 4) * size_of(f32))
         gl.VertexAttribPointer(id, 4, gl.FLOAT, false, size_of(Instance), offset)
@@ -78,13 +78,13 @@ mesh_deinit :: proc(m: ^Mesh) {
     delete(m.verts)
 }
 
-mesh_draw :: proc(m: ^Mesh, transform: matrix[4, 4]f32, tex_unit: u32) {
+mesh_draw :: proc(m: ^Mesh, transform: matrix[4, 4]f32, tex_unit, tiling: u32) {
     if len(m.instances) + 1 >= MAX_INSTANCES {
         mesh_flush(m)
     }
 
     append(&m.instances, Instance{
-        // tex_unit = tex_unit,
+        texture = [2]u32{tex_unit, tiling},
         transform = transform,
     })
 }
