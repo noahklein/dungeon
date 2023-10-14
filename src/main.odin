@@ -14,7 +14,7 @@ import "gui"
 import "game"
 
 
-SCREEN :: [2]i32{1200, 800}
+SCREEN :: [2]i32{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
 TITLE :: "Dungeon"
 
@@ -31,12 +31,6 @@ cam := render.Camera{
 }
 
 cursor_hidden := true
-
-
-PointLight :: struct {
-	pos: glm.vec3,
-	ambient, diffuse, specular: glm.vec3,
-}
 
 main :: proc() {
 	when ODIN_DEBUG {
@@ -61,6 +55,8 @@ main :: proc() {
 			mem.tracking_allocator_destroy(&track)
 		}
 	}
+	defer free_all(context.temp_allocator)
+	defer game.deinit_world()
 
 	// Initialize glfw and window
     if glfw.Init() == 0 {
@@ -82,14 +78,19 @@ main :: proc() {
 	gl.load_up_to(GL_MAJOR_VERSION, GL_MINOR_VERSION, glfw.gl_set_proc_address)
 
 	gl.Enable(gl.DEBUG_OUTPUT)
+	gl.DebugMessageControl(gl.DONT_CARE, gl.DONT_CARE, gl.DONT_CARE, 0, nil, false)
+	gl.DebugMessageControl(gl.DEBUG_SOURCE_API, gl.DEBUG_TYPE_ERROR, gl.DONT_CARE, 0, nil, true)
 	gl.DebugMessageCallback(debug.on_debug_msg, nil)
 
+
 	gl.Enable(gl.BLEND)
-	// gl.BlendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	// gl.BlendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE)
     gl.Enable(gl.DEPTH_TEST)
     gl.DepthFunc(gl.LESS)
 
 	// glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
+	glfw.SetKeyCallback(window, key_callback)
 	glfw.SetCursorPosCallback(window, mouse_callback)
 	glfw.SetMouseButtonCallback(window, mouse_button_callback)
 
@@ -116,20 +117,17 @@ main :: proc() {
 	brick_norm_tex := render.texture_load(1, "assets/brick_norm.jpg")
 	ground_tex := render.texture_load(2, "assets/ground.png")
 	ground_norm_tex := render.texture_load(3, "assets/ground_norm.png")
-	textures := [?]i32{0, 1, 2, 3}
+	door_tex := render.texture_load(4, "assets/door.png")
+	door_norm_tex := render.texture_load(5, "assets/door_norm.png")
+	textures := [?]i32{0, 1, 2, 3, 4, 5}
+
+	game.world_load("config.json")
 
 	projection := render.projection(cam)
 
     frames : i64
 	prev_second : f32
 	prev_frame_time : f32
-
-	point_light := PointLight{
-		pos = {0, 0, 0},
-		ambient = {0.2, 0.2, 0.2},
-		diffuse = {0.5, 0.5, 0.5},
-		specular = {1, 1, 1},
-	}
 
 	// Game loop
 	for !glfw.WindowShouldClose(window) {
@@ -164,54 +162,81 @@ main :: proc() {
 		if glfw.GetKey(window, glfw.KEY_Z) == glfw.PRESS {
 			cam.pos.y = 1
 		}
-		point_light.ambient = glm.vec3(gui.state.ambient)
-		point_light.diffuse = glm.vec3(gui.state.diffuse)
-		point_light.specular = glm.vec3(gui.state.specular)
 
 		view := render.look_at(cam)
 
         glfw.PollEvents()
 
         gl.ClearColor(0, 0, 0, 1)
-		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) 
 
 		// Draw cube
 		gl.UseProgram(shader.id)
 		render.setMat4(shader.id, "projection", &projection[0, 0])
 		render.setMat4(shader.id, "view", &view[0, 0])
-		render.setStruct(shader.id, "pointLight", PointLight, point_light)
+		for light, i in game.world.point_lights {
+			name := fmt.tprintf("pointLights[%d]", i)
+			render.setStruct(shader.id, name, game.PointLight, light)
+		}
 		render.setFloat3(shader.id, "camPos", cam.pos);
 		render.setIntArray(shader.id, "textures", len(textures), &textures[0])
 
-		// gl.ActiveTexture(brick_tex.id)
 		gl.BindTextureUnit(brick_tex.unit, brick_tex.id)
 		gl.BindTextureUnit(brick_norm_tex.unit, brick_norm_tex.id)
 		gl.BindTextureUnit(ground_tex.unit, ground_tex.id)
 		gl.BindTextureUnit(ground_norm_tex.unit, ground_norm_tex.id)
-		for wall in game.world.walls {
+
+		for wall, i in game.world.walls {
 			model := game.entity_model(wall)
-			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 10)
+			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 20)
+
+			// Draw editor outline.
+			when ODIN_DEBUG {
+				if gui.state.entity == &game.world.walls[i] {
+					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
+					render.mesh_draw(&cube_mesh, m, 100, 1)
+				}
+			}
 		}
-		for ground in game.world.grounds {
-			// model := glm.mat4Scale({100, 0.1, 100}) * glm.mat4Translate({0, -1, 0})
+		for ground, i in game.world.grounds {
 			model := game.entity_model(ground)
-			render.mesh_draw(&cube_mesh, model, ground_tex.unit, 100)
+			render.mesh_draw(&cube_mesh, model, ground_tex.unit, 25)
+
+			// Draw editor outline.
+			when ODIN_DEBUG {
+				if gui.state.entity == &game.world.grounds[i] {
+					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
+					render.mesh_draw(&cube_mesh, m, 100, 1)
+				}
+			}
 		}
 
 		// Draw light
-		render.mesh_draw(&cube_mesh, glm.mat4Translate(point_light.pos), brick_tex.unit, 10)
+		for light, i in game.world.point_lights {
+			// game.world.point_lights[i].radius = i32(glm.sin(prev_frame_time) * 10 + 10)
+			model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
+			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 1)
+
+			// Draw editor outline.
+			when ODIN_DEBUG {
+				if gui.state.entity == &game.world.point_lights[i] {
+					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
+					render.mesh_draw(&cube_mesh, m, 100, 1)
+				}
+			}
+		}
 
 		render.mesh_flush(&cube_mesh)
 
-		gui.render()
-
-		render.watch(&shader)
+		when ODIN_DEBUG {
+			gui.render()
+			render.watch(&shader)
+			if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
+				break
+			}
+		}
         glfw.SwapBuffers(window)
         free_all(context.temp_allocator)
-
-		if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
-			break
-		}
     }
 }
 
@@ -234,6 +259,13 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 		} else {
 			glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_NORMAL)
 		}
+	}
+}
+
+key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods: i32) {
+	context = runtime.default_context()
+	if key == glfw.KEY_S && mods == glfw.MOD_CONTROL && action == glfw.PRESS {
+		game.world_save_to_file("config.json")
 	}
 }
 

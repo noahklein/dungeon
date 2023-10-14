@@ -186,7 +186,6 @@ setStruct :: proc(id: u32, name: string, $T: typeid, obj: T) {
 				setInt(id, full_name, v)
 			case glm.vec3:
 				setFloat3(id, full_name, v)
-
 		}
 
 	}

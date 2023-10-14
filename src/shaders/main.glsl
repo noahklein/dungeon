@@ -32,6 +32,7 @@ struct PointLight {
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+    int radius;
 };
 
 in vec3 vPos;
@@ -39,33 +40,46 @@ in vec2 vTexCoord;
 in vec3 vNormal;
 flat in ivec2 vTexture;
 
-uniform PointLight pointLight;
+#define LIGHTS 4
+uniform PointLight pointLights[LIGHTS];
 uniform vec3 camPos;
-uniform sampler2D textures[4];
+uniform sampler2D textures[6];
 
 layout (location = 0) out vec4 color;
 
+vec3 calcPointLight(PointLight light, vec3 normal, vec3 viewDir) {
+    float attenuation = smoothstep(light.radius, 0, length(light.pos - vPos));
 
-
-vec4 lighting() {
-    vec3 normal = texture(textures[vTexture.x + 1], vTexCoord * vTexture.y).rgb;
-    normal = normalize(normal * 2 - 1);
-
-    vec3 lightDir = normalize(pointLight.pos - vPos);
+    vec3 lightDir = normalize(light.pos - vPos);
     float diffAmount = max(dot(normal, lightDir), 0);
-    vec3 diffuse = pointLight.diffuse * diffAmount;
+    vec3 diffuse = light.diffuse * diffAmount * vec3(texture(textures[vTexture.x], vTexCoord * vTexture.y));
+    diffuse *= attenuation;
 
-    vec3 viewDir = normalize(camPos - vPos);
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float specAmount = pow(max(dot(viewDir, reflectDir), 0), 5);
-    vec3 specular = pointLight.specular * specAmount;
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    // vec3 reflectDir = reflect(-lightDir, normal);
+    // float specAmount = pow(max(dot(viewDir, reflectDir), 0), 5);
+    float specAmount = pow(max(dot(normal, halfwayDir), 0), 5);
+    vec3 specular = light.specular * specAmount;
+    specular *= attenuation;
 
-    return vec4(pointLight.ambient + specular + diffuse, 1);
+    return (light.ambient * attenuation) + specular + diffuse;
 
 }
 
 void main() {
-    // color = texture(textures[vTexUnit], vTexCoord * tiling) * lighting();
-    color = texture(textures[vTexture.x], vTexCoord * vTexture.y) * lighting();
-    // color = vec4(vTexCoord, 1, 1) * lighting();
+    // Outline object.
+    if (vTexture.x >= 100) {
+        color = vec4(1, 1, 1, 0.2);
+        return;
+    }
+
+    vec3 viewDir = normalize(camPos - vPos);
+    vec3 normal = texture(textures[vTexture.x + 1], vTexCoord * vTexture.y).rgb;
+    normal = normalize(normal * 2 - 1);
+
+    vec3 result = vec3(0, 0, 0);
+    for (int i = 0; i < LIGHTS; i++) {
+        result += calcPointLight(pointLights[i], normal, viewDir);
+    }
+    color = vec4(result, 1);
 }

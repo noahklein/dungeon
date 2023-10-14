@@ -3,6 +3,7 @@ package gui
 import "core:fmt"
 import "core:strings"
 import glm "core:math/linalg/glsl"
+import "core:reflect"
 
 import "vendor:glfw"
 import "../libs/imgui"
@@ -12,21 +13,10 @@ import imgui_gl "../libs/imgui/imgui_impl_opengl3"
 import "../game"
 
 State :: struct {
-	open: bool,
-	ambient: [3]f32,
-	diffuse: [3]f32,
-	specular: [3]f32,
-
-	entity: ^game.Entity,
-	position: [3]f32,
+	entity: game.Thing,
 }
 
-state := State{
-	open = true,
-	ambient = {0.2, 0.2, 0.2},
-	diffuse = {0.5, 0.5, 0.5},
-	specular = {1, 1, 1},
-}
+state : State
 
 init :: proc(window: glfw.WindowHandle) {
     imgui.CHECKVERSION()
@@ -59,38 +49,65 @@ render :: proc() {
     imgui_glfw.NewFrame()
     imgui.NewFrame()
 
-	imgui.Begin("Entities", nil, nil)
+	imgui.ShowMetricsWindow(nil)
+
+	using game.world
+
+	imgui.Begin("Entities", nil, {.NoMove, .NoCollapse, .MenuBar})
+	if imgui.BeginMenuBar() {
+		if imgui.BeginMenu("New") {
+			if imgui.MenuItem("Ground") {
+				append(&grounds, game.Ground{scale = glm.vec3(1)})
+				state.entity = &grounds[len(grounds) - 1]
+			}
+			if imgui.MenuItem("Walls") {
+				append(&walls, game.Wall{scale = glm.vec3(1)})
+				state.entity = &walls[len(walls) - 1]
+			}
+			if imgui.MenuItem("Point Light") {
+				append(&point_lights, game.PointLight{
+					radius = 1,
+					ambient = glm.vec3(1),
+				})
+				state.entity = &point_lights[len(point_lights) - 1]
+			}
+			imgui.EndMenu()
+		}
+	}
+	imgui.EndMenuBar()
+
 	if imgui.CollapsingHeader("Ground", nil) {
-		for ground, i in game.world.grounds {
+		for ground, i in grounds {
 			label := fmt.ctprintf("ground-%d", i)
 			if imgui.Button(label) {
-				state.entity = &game.world.grounds[i]
+				state.entity = &grounds[i]
+			}
+			imgui.SameLine()
+			if imgui.SmallButton("X") {
+				unordered_remove(&grounds, i)
+				state.entity = nil
 			}
 		}
 	}
 	if imgui.CollapsingHeader("Walls", nil) {
-		for wall, i in game.world.walls {
+		for wall, i in walls {
 			label := fmt.ctprintf("wall-%d", i)
 			if imgui.Button(label) {
-				state.entity = &game.world.walls[i]
+				state.entity = &walls[i]
+			}
+		}
+	}
+	if imgui.CollapsingHeader("Point Lights", nil) {
+		for wall, i in point_lights {
+			label := fmt.ctprintf("light-%d", i)
+			if imgui.Button(label) {
+				state.entity = &point_lights[i]
 			}
 		}
 	}
 	imgui.End()
 
-	imgui.Begin("Entity", nil, nil)
-	if state.entity != nil {
-		imgui.DragFloat3("Position", transmute(^[3]f32)&state.entity.pos)
-		imgui.DragFloat3("Scale", transmute(^[3]f32)&state.entity.scale)
-	}
-	imgui.End()
-
-	if imgui.Begin("Light", &state.open, {.MenuBar}) {
-		imgui.ColorEdit3("Ambient", &state.ambient, nil)
-		imgui.ColorEdit3("Diffuse", &state.diffuse, nil)
-		imgui.ColorEdit3("Specular", &state.specular, nil)
-	}
-	imgui.End()
+	enitity_window(state.entity)
 
     imgui.Render()
     imgui_gl.RenderDrawData(imgui.GetDrawData())
@@ -101,4 +118,31 @@ render :: proc() {
         imgui.RenderPlatformWindowsDefault()
         glfw.MakeContextCurrent(backup_current_window)
     }
+}
+
+enitity_window :: proc(entity: game.Thing) {
+	imgui.Begin("Thing", nil, nil)
+	defer imgui.End()
+
+	if entity == nil {
+		return
+	}
+
+
+	switch v in entity {
+	case ^game.PointLight:
+		imgui.DragFloat3("Position", transmute(^[3]f32)&v.pos)
+		imgui.DragInt("Radius", &v.radius)
+		imgui.ColorEdit3("Ambient", transmute(^[3]f32)&v.ambient, nil)
+		imgui.ColorEdit3("Diffuse", transmute(^[3]f32)&v.diffuse, nil)
+		imgui.ColorEdit3("Specular", transmute(^[3]f32)&v.specular, nil)
+	case ^game.Ground:
+		imgui.DragFloat3("Position", transmute(^[3]f32)&v.pos)
+		imgui.DragFloat3("Scale", transmute(^[3]f32)&v.scale)
+	case ^game.Wall:
+		imgui.DragFloat3("Position", transmute(^[3]f32)&v.pos)
+		imgui.DragFloat3("Scale", transmute(^[3]f32)&v.scale)
+	case ^game.Door:
+	}
+
 }
