@@ -82,10 +82,8 @@ main :: proc() {
 	gl.DebugMessageControl(gl.DEBUG_SOURCE_API, gl.DEBUG_TYPE_ERROR, gl.DONT_CARE, 0, nil, true)
 	gl.DebugMessageCallback(debug.on_debug_msg, nil)
 
-
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-	// gl.BlendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE)
     gl.Enable(gl.DEPTH_TEST)
     gl.DepthFunc(gl.LESS)
 
@@ -107,6 +105,14 @@ main :: proc() {
 	cube_mesh := render.mesh_init(cube_obj)
 	defer render.mesh_deinit(&cube_mesh)
 
+    katana_obj, katana_obj_err := render.load_obj("assets/katana/katana.obj")
+    if katana_obj_err != nil {
+        fmt.eprintln("Failed to load katana.obj:", katana_obj_err)
+        return
+    }
+	katana_mesh := render.mesh_init(katana_obj)
+	defer render.mesh_deinit(&katana_mesh)
+
 	shader, shader_err := render.shader_load("src/shaders/main.glsl")
 	if shader_err != nil {
 		fmt.eprintln("Failed to load shaders/main.glsl:", shader_err)
@@ -119,7 +125,9 @@ main :: proc() {
 	ground_norm_tex := render.texture_load(3, "assets/ground_norm.png")
 	door_tex := render.texture_load(4, "assets/door.png")
 	door_norm_tex := render.texture_load(5, "assets/door_norm.png")
-	textures := [?]i32{0, 1, 2, 3, 4, 5}
+	katana_tex := render.texture_load(6, "assets/katana/katana.png")
+	katana_norm_tex := render.texture_load(7, "assets/katana/katana_norm.png")
+	textures := [?]i32{0, 1, 2, 3, 4, 5, 6, 7}
 
 	game.world_load("config.json")
 
@@ -185,6 +193,8 @@ main :: proc() {
 		gl.BindTextureUnit(brick_norm_tex.unit, brick_norm_tex.id)
 		gl.BindTextureUnit(ground_tex.unit, ground_tex.id)
 		gl.BindTextureUnit(ground_norm_tex.unit, ground_norm_tex.id)
+		gl.BindTextureUnit(katana_tex.unit, katana_tex.id)
+		gl.BindTextureUnit(katana_norm_tex.unit, katana_norm_tex.id)
 
 		for wall, i in game.world.walls {
 			model := game.entity_model(wall)
@@ -227,6 +237,12 @@ main :: proc() {
 		}
 
 		render.mesh_flush(&cube_mesh)
+
+		{
+			model := glm.mat4Translate(cam.forward) * glm.mat4Translate(cam.pos)
+			render.mesh_draw(&katana_mesh, model, katana_tex.unit, 1)
+			render.mesh_flush(&katana_mesh)
+		}
 
 		when ODIN_DEBUG {
 			gui.render()

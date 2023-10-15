@@ -43,7 +43,7 @@ flat in ivec2 vTexture;
 #define LIGHTS 4
 uniform PointLight pointLights[LIGHTS];
 uniform vec3 camPos;
-uniform sampler2D textures[6];
+uniform sampler2D textures[10];
 
 layout (location = 0) out vec4 color;
 
@@ -56,9 +56,7 @@ vec3 calcPointLight(PointLight light, vec3 normal, vec3 viewDir) {
     diffuse *= attenuation;
 
     vec3 halfwayDir = normalize(lightDir + viewDir);
-    // vec3 reflectDir = reflect(-lightDir, normal);
-    // float specAmount = pow(max(dot(viewDir, reflectDir), 0), 5);
-    float specAmount = pow(max(dot(normal, halfwayDir), 0), 5);
+    float specAmount = pow(max(dot(normal, halfwayDir), 0), 10);
     vec3 specular = light.specular * specAmount;
     specular *= attenuation;
 
@@ -79,6 +77,9 @@ void main() {
 
     vec3 result = vec3(0, 0, 0);
     for (int i = 0; i < LIGHTS; i++) {
+        if (pointLights[i].radius <= 0) {
+            continue;
+        }
         result += calcPointLight(pointLights[i], normal, viewDir);
     }
     color = vec4(result, 1);

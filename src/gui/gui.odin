@@ -14,6 +14,7 @@ import "../game"
 
 State :: struct {
 	entity: game.Thing,
+	rotation: [3]f32, // Euler angles
 }
 
 state : State
@@ -66,8 +67,10 @@ render :: proc() {
 			}
 			if imgui.MenuItem("Point Light") {
 				append(&point_lights, game.PointLight{
-					radius = 1,
-					ambient = glm.vec3(1),
+					radius = 10,
+					ambient = glm.vec3(0.25),
+					diffuse = glm.vec3(0.5),
+					specular = glm.vec3(0.75),
 				})
 				state.entity = &point_lights[len(point_lights) - 1]
 			}
@@ -83,7 +86,8 @@ render :: proc() {
 				state.entity = &grounds[i]
 			}
 			imgui.SameLine()
-			if imgui.SmallButton("X") {
+			delete_label := fmt.ctprintf("X##%s", label)
+			if imgui.SmallButton(delete_label) {
 				unordered_remove(&grounds, i)
 				state.entity = nil
 			}
@@ -121,7 +125,7 @@ render :: proc() {
 }
 
 enitity_window :: proc(entity: game.Thing) {
-	imgui.Begin("Thing", nil, nil)
+	imgui.Begin("Entity", nil, nil)
 	defer imgui.End()
 
 	if entity == nil {
@@ -144,5 +148,10 @@ enitity_window :: proc(entity: game.Thing) {
 		imgui.DragFloat3("Scale", transmute(^[3]f32)&v.scale)
 	case ^game.Door:
 	}
+}
 
+quaternion_editor :: proc(q: ^glm.quat) {
+	if imgui.DragFloat3("Rotation", &state.rotation) {
+		// ^q = glm.quat
+	}
 }

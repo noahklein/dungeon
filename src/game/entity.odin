@@ -17,12 +17,13 @@ Chunk :: struct {
     walls: [dynamic]Wall,
     doors: [dynamic]Door,
     point_lights: [dynamic]PointLight,
+    sword: Sword,
 }
 
 world : Chunk
 
 entity_model :: proc(e: Entity) -> glm.mat4 {
-    return  glm.mat4Translate(e.scale / 2) * glm.mat4Translate(e.pos) * glm.mat4Scale(e.scale)
+    return  glm.mat4Translate(e.scale / 2) * glm.mat4Translate(e.pos) * glm.mat4FromQuat(e.rot) * glm.mat4Scale(e.scale)
 }
 
 Ground :: struct {
@@ -34,6 +35,10 @@ Wall :: struct {
 }
 
 Door :: struct {
+    using entity: Entity
+}
+
+Sword :: struct {
     using entity: Entity
 }
 
