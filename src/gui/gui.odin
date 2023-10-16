@@ -14,7 +14,6 @@ import "../game"
 
 State :: struct {
 	entity: game.Thing,
-	rotation: [3]f32, // Euler angles
 }
 
 state : State
@@ -68,9 +67,11 @@ render :: proc() {
 			if imgui.MenuItem("Point Light") {
 				append(&point_lights, game.PointLight{
 					radius = 10,
-					ambient = glm.vec3(0.25),
-					diffuse = glm.vec3(0.5),
-					specular = glm.vec3(0.75),
+					ambient = 0.25, diffuse = 0.5, specular = 0.75,
+					color = glm.vec3(1),
+					// ambient = glm.vec3(0.25),
+					// diffuse = glm.vec3(0.5),
+					// specular = glm.vec3(0.75),
 				})
 				state.entity = &point_lights[len(point_lights) - 1]
 			}
@@ -109,6 +110,11 @@ render :: proc() {
 			}
 		}
 	}
+
+	if imgui.Button("Sword") {
+		state.entity = &sword
+	}
+
 	imgui.End()
 
 	enitity_window(state.entity)
@@ -135,23 +141,33 @@ enitity_window :: proc(entity: game.Thing) {
 
 	switch v in entity {
 	case ^game.PointLight:
-		imgui.DragFloat3("Position", transmute(^[3]f32)&v.pos)
-		imgui.DragInt("Radius", &v.radius)
-		imgui.ColorEdit3("Ambient", transmute(^[3]f32)&v.ambient, nil)
-		imgui.ColorEdit3("Diffuse", transmute(^[3]f32)&v.diffuse, nil)
-		imgui.ColorEdit3("Specular", transmute(^[3]f32)&v.specular, nil)
+		point_light_edit(v)
 	case ^game.Ground:
-		imgui.DragFloat3("Position", transmute(^[3]f32)&v.pos)
-		imgui.DragFloat3("Scale", transmute(^[3]f32)&v.scale)
+		transform_edit(&v.entity)
 	case ^game.Wall:
-		imgui.DragFloat3("Position", transmute(^[3]f32)&v.pos)
-		imgui.DragFloat3("Scale", transmute(^[3]f32)&v.scale)
+		transform_edit(&v.entity)
 	case ^game.Door:
+		transform_edit(&v.entity)
+	case ^game.Sword:
+		transform_edit(&v.entity)
 	}
 }
 
-quaternion_editor :: proc(q: ^glm.quat) {
-	if imgui.DragFloat3("Rotation", &state.rotation) {
-		// ^q = glm.quat
+transform_edit :: proc(e: ^game.Entity) {
+	imgui.DragFloat3("Position", transmute(^[3]f32)&e.pos)
+	if imgui.DragFloat3("Rotation", transmute(^[3]f32)&e.rot) {
+		for v, i in e.rot {
+			e.rot[i] = clamp(v, -180, 180)
+		}
 	}
+	imgui.DragFloat3("Scale", transmute(^[3]f32)&e.scale)
+}
+
+point_light_edit :: proc(p: ^game.PointLight) {
+	imgui.DragFloat3("Position", transmute(^[3]f32)&p.pos)
+	imgui.ColorEdit3("Color", transmute(^[3]f32)&p.color, nil)
+	imgui.DragFloat("Radius", &p.radius)
+	imgui.DragFloat("Ambient", &p.ambient)
+	imgui.DragFloat("Diffuse", &p.diffuse)
+	imgui.DragFloat("Specular", &p.specular)
 }

@@ -29,10 +29,16 @@ void main() {
 
 struct PointLight {
     vec3 pos;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-    int radius;
+    vec3 color;
+    float radius;
+    float ambient;
+    float diffuse;
+    float specular;
+
+    // vec3 ambient;
+    // vec3 diffuse;
+    // vec3 specular;
+    // float radius;
 };
 
 in vec3 vPos;
@@ -48,19 +54,23 @@ uniform sampler2D textures[10];
 layout (location = 0) out vec4 color;
 
 vec3 calcPointLight(PointLight light, vec3 normal, vec3 viewDir) {
-    float attenuation = smoothstep(light.radius, 0, length(light.pos - vPos));
+    // distance()
+    float attenuation = smoothstep(light.radius, 0.0, distance(light.pos, vPos));
+    // float attenuation = smoothstep(light.radius, 0, length(light.pos - vPos));
+
+    vec3 ambient = light.color * light.ambient * attenuation;
 
     vec3 lightDir = normalize(light.pos - vPos);
     float diffAmount = max(dot(normal, lightDir), 0);
-    vec3 diffuse = light.diffuse * diffAmount * vec3(texture(textures[vTexture.x], vTexCoord * vTexture.y));
+    vec3 diffuse = (light.color * light.diffuse) * diffAmount * vec3(texture(textures[vTexture.x], vTexCoord * vTexture.y));
     diffuse *= attenuation;
 
     vec3 halfwayDir = normalize(lightDir + viewDir);
-    float specAmount = pow(max(dot(normal, halfwayDir), 0), 10);
-    vec3 specular = light.specular * specAmount;
+    float specAmount = pow(max(dot(normal, halfwayDir), 0), 100);
+    vec3 specular = (light.color * light.specular) * specAmount;
     specular *= attenuation;
 
-    return (light.ambient * attenuation) + specular + diffuse;
+    return ambient + specular + diffuse;
 
 }
 

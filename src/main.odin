@@ -18,18 +18,6 @@ SCREEN :: [2]i32{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
 TITLE :: "Dungeon"
 
-cam := render.Camera{
-	fov = 70,
-	aspect = ASPECT,
-	near = 0.1, far = 1000,
-
-	pos = {0, 0, 20},
-	forward = {0, 0, 1}, right = {1, 0, 0},
-	yaw = -90, pitch = 0,
-	sensitivity = {0.01, 0.01},
-	speed = 10000,
-}
-
 cursor_hidden := true
 
 main :: proc() {
@@ -130,8 +118,9 @@ main :: proc() {
 	textures := [?]i32{0, 1, 2, 3, 4, 5, 6, 7}
 
 	game.world_load("config.json")
+	game.init_camera(ASPECT)
 
-	projection := render.projection(cam)
+	projection := game.projection(game.cam)
 
     frames : i64
 	prev_second : f32
@@ -151,27 +140,31 @@ main :: proc() {
 		dt := (now - prev_frame_time) / 1000
 		prev_frame_time = now
 
+		input : bit_set[game.Event]
 		if glfw.GetKey(window, glfw.KEY_A) == glfw.PRESS {
-			cam.pos -= cam.right * cam.speed * dt 
+			input += {.Left}
 		} else if glfw.GetKey(window, glfw.KEY_D) == glfw.PRESS {
-			cam.pos += cam.right * cam.speed * dt
+			input += {.Right}
 		}
 		if glfw.GetKey(window, glfw.KEY_W) == glfw.PRESS {
-			cam.pos += cam.forward * cam.speed * dt
+			input += {.Forward}
 		} else if glfw.GetKey(window, glfw.KEY_S) == glfw.PRESS {
-			cam.pos -= cam.forward * cam.speed * dt
+			input += {.Backward}
 		}
 		if glfw.GetKey(window, glfw.KEY_Q) == glfw.PRESS {
-			cam.pos += glm.vec3{0, 1, 0} * cam.speed * dt
+			input += {.FlyUp}
 		}
 		if glfw.GetKey(window, glfw.KEY_E) == glfw.PRESS {
-			cam.pos -= glm.vec3{0, 1, 0} * cam.speed * dt
+			input += {.FlyDown}
 		}
-		if glfw.GetKey(window, glfw.KEY_Z) == glfw.PRESS {
-			cam.pos.y = 1
-		}
+	
+		if glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
+			input += {.Absorb_Light}
 
-		view := render.look_at(cam)
+		}
+		view := game.update(dt, input)
+
+		// view := game.look_at(game.cam)
 
         glfw.PollEvents()
 
@@ -186,7 +179,7 @@ main :: proc() {
 			name := fmt.tprintf("pointLights[%d]", i)
 			render.setStruct(shader.id, name, game.PointLight, light)
 		}
-		render.setFloat3(shader.id, "camPos", cam.pos);
+		render.setFloat3(shader.id, "camPos", game.cam.pos);
 		render.setIntArray(shader.id, "textures", len(textures), &textures[0])
 
 		gl.BindTextureUnit(brick_tex.unit, brick_tex.id)
@@ -239,7 +232,11 @@ main :: proc() {
 		render.mesh_flush(&cube_mesh)
 
 		{
-			model := glm.mat4Translate(cam.forward) * glm.mat4Translate(cam.pos)
+			// Draw sword.
+			camera_transform := glm.inverse(view)
+			// model := glm.mat4Translate(cam.forward) * glm.mat4Translate(cam.pos)
+			// model = game.entity_model(game.world.sword) * model
+			model := camera_transform * game.entity_model(game.world.sword)
 			render.mesh_draw(&katana_mesh, model, katana_tex.unit, 1)
 			render.mesh_flush(&katana_mesh)
 		}
@@ -259,7 +256,7 @@ main :: proc() {
 mouse_callback :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
 	context = runtime.default_context()
 	if cursor_hidden {
-		render.on_mouse_move(&cam, {f32(xpos), f32(ypos)})
+		game.on_mouse_move(&game.cam, {f32(xpos), f32(ypos)})
 	}
 }
 
@@ -268,7 +265,7 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 
 	if button == glfw.MOUSE_BUTTON_RIGHT && action == glfw.PRESS {
 		cursor_hidden = !cursor_hidden
-		render.init_mouse = false
+		game.init_mouse = false
 
 		if cursor_hidden {
 			glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)

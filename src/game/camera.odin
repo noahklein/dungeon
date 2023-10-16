@@ -1,4 +1,4 @@
-package render
+package game
 
 import glm "core:math/linalg/glsl"
 import "core:fmt"
@@ -14,6 +14,22 @@ Camera :: struct {
     pitch, yaw: f32, // horizontal, vertical
     sensitivity, mouse_pos: glm.vec2,
     speed: f32,
+}
+
+cam : Camera
+
+init_camera :: proc(aspect: f32) {
+    cam = {
+        fov = 70,
+        aspect = aspect,
+        near = 0.1, far = 1000,
+
+        pos = {0, 0, 20},
+        forward = {0, 0, 1}, right = {1, 0, 0},
+        yaw = -90, pitch = 0,
+        sensitivity = {0.01, 0.01},
+        speed = 10000,
+    }
 }
 
 projection :: proc(c: Camera) -> glm.mat4 {

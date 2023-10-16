@@ -158,6 +158,9 @@ watch :: proc(s: ^Shader) -> ShaderError {
 setInt :: proc (id: u32, name: cstring, i: i32) {
 	gl.Uniform1i(loc(id, name), i)
 }
+setFloat ::  proc (id: u32, name: cstring, f: f32) {
+	gl.Uniform1f(loc(id, name), f)
+}
 setFloat3 ::  proc (id: u32, name: cstring, f: glm.vec3) {
     gl.Uniform3f(loc(id, name), f.x, f.y, f.z)
 }
@@ -184,8 +187,12 @@ setStruct :: proc(id: u32, name: string, $T: typeid, obj: T) {
 		switch v in val {
 			case i32:
 				setInt(id, full_name, v)
+			case f32:
+				setFloat(id, full_name, v)
 			case glm.vec3:
 				setFloat3(id, full_name, v)
+			case:
+				fmt.eprintln("Unsupported field type in setStruct", full_name, v)
 		}
 
 	}
