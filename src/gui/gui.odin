@@ -100,6 +100,12 @@ render :: proc() {
 			if imgui.Button(label) {
 				state.entity = &walls[i]
 			}
+			imgui.SameLine()
+			delete_label := fmt.ctprintf("X##%s", label)
+			if imgui.SmallButton(delete_label) {
+				unordered_remove(&walls, i)
+				state.entity = nil
+			}
 		}
 	}
 	if imgui.CollapsingHeader("Point Lights", nil) {
@@ -107,6 +113,12 @@ render :: proc() {
 			label := fmt.ctprintf("light-%d", i)
 			if imgui.Button(label) {
 				state.entity = &point_lights[i]
+			}
+			imgui.SameLine()
+			delete_label := fmt.ctprintf("X##%s", label)
+			if imgui.SmallButton(delete_label) {
+				unordered_remove(&point_lights, i)
+				state.entity = nil
 			}
 		}
 	}
@@ -154,20 +166,16 @@ enitity_window :: proc(entity: game.Thing) {
 }
 
 transform_edit :: proc(e: ^game.Entity) {
-	imgui.DragFloat3("Position", transmute(^[3]f32)&e.pos)
-	if imgui.DragFloat3("Rotation", transmute(^[3]f32)&e.rot) {
-		for v, i in e.rot {
-			e.rot[i] = clamp(v, -180, 180)
-		}
-	}
-	imgui.DragFloat3("Scale", transmute(^[3]f32)&e.scale)
+	imgui.DragFloat3Ex("Position", transmute(^[3]f32)&e.pos, 0.2, -99999, 99999, nil, nil)
+	imgui.DragFloat3Ex("Rotation", transmute(^[3]f32)&e.rot, 0.2, -180, 180, nil, nil)
+	imgui.DragFloat3Ex("Scale", transmute(^[3]f32)&e.scale, 0.2, -99999, 99999, nil, nil)
 }
 
 point_light_edit :: proc(p: ^game.PointLight) {
 	imgui.DragFloat3("Position", transmute(^[3]f32)&p.pos)
 	imgui.ColorEdit3("Color", transmute(^[3]f32)&p.color, nil)
-	imgui.DragFloat("Radius", &p.radius)
-	imgui.DragFloat("Ambient", &p.ambient)
-	imgui.DragFloat("Diffuse", &p.diffuse)
-	imgui.DragFloat("Specular", &p.specular)
+	imgui.DragFloatEx("Radius", &p.radius, 0.2, 0, 500, nil, nil)
+	imgui.DragFloatEx("Ambient", &p.ambient, 0.05, 0, 120, nil, nil)
+	imgui.DragFloatEx("Diffuse", &p.diffuse, 0.05, 0, 120, nil, nil)
+	imgui.DragFloatEx("Specular", &p.specular, 0.05, 0, 120, nil, nil)
 }

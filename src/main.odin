@@ -101,7 +101,7 @@ main :: proc() {
 	katana_mesh := render.mesh_init(katana_obj)
 	defer render.mesh_deinit(&katana_mesh)
 
-	shader, shader_err := render.shader_load("src/shaders/main.glsl")
+	shader, shader_err := render.shader_load("assets/shaders/main.glsl")
 	if shader_err != nil {
 		fmt.eprintln("Failed to load shaders/main.glsl:", shader_err)
 		return
