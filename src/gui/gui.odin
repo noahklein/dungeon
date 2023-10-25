@@ -12,8 +12,13 @@ import imgui_gl "../libs/imgui/imgui_impl_opengl3"
 
 import "../game"
 
+EntityType :: enum {
+	Entity,
+	Light,
+}
 State :: struct {
-	entity: game.Thing,
+	entity_id: int,
+	entity_type: EntityType,
 }
 
 state : State
@@ -51,21 +56,18 @@ render :: proc() {
 
 	imgui.ShowMetricsWindow(nil)
 
-	using game.world
+	// using game.world
 
 	imgui.Begin("Entities", nil, {.NoMove, .NoCollapse, .MenuBar})
 	if imgui.BeginMenuBar() {
 		if imgui.BeginMenu("New") {
-			if imgui.MenuItem("Ground") {
-				append(&grounds, game.Ground{scale = glm.vec3(1)})
-				state.entity = &grounds[len(grounds) - 1]
-			}
-			if imgui.MenuItem("Walls") {
-				append(&walls, game.Wall{scale = glm.vec3(1)})
-				state.entity = &walls[len(walls) - 1]
+			if imgui.MenuItem("Cube") {
+				append(&game.entities, game.Ent{})
+				state.entity_id = len(game.entities) - 1
+				state.entity_type = .Entity
 			}
 			if imgui.MenuItem("Point Light") {
-				append(&point_lights, game.PointLight{
+				append(&game.lights, game.PointLight{
 					radius = 10,
 					ambient = 0.25, diffuse = 0.5, specular = 0.75,
 					color = glm.vec3(1),
@@ -73,63 +75,57 @@ render :: proc() {
 					// diffuse = glm.vec3(0.5),
 					// specular = glm.vec3(0.75),
 				})
-				state.entity = &point_lights[len(point_lights) - 1]
+				state.entity_type = .Light
+				// state.entity = &point_lights[len(point_lights) - 1]
 			}
 			imgui.EndMenu()
 		}
 	}
 	imgui.EndMenuBar()
 
-	if imgui.CollapsingHeader("Ground", nil) {
-		for ground, i in grounds {
-			label := fmt.ctprintf("ground-%d", i)
+	if imgui.CollapsingHeader("Entities", nil) {
+		for ent, i in game.entities {
+			label := fmt.ctprintf("entity-%d", i)
 			if imgui.Button(label) {
-				state.entity = &grounds[i]
+				state.entity_id = i
+				state.entity_type = .Entity
 			}
 			imgui.SameLine()
 			delete_label := fmt.ctprintf("X##%s", label)
 			if imgui.SmallButton(delete_label) {
-				unordered_remove(&grounds, i)
-				state.entity = nil
+				unordered_remove(&game.entities, i)
+				if state.entity_id == i {
+					state.entity_id = -1
+				}
 			}
 		}
 	}
-	if imgui.CollapsingHeader("Walls", nil) {
-		for wall, i in walls {
-			label := fmt.ctprintf("wall-%d", i)
-			if imgui.Button(label) {
-				state.entity = &walls[i]
-			}
-			imgui.SameLine()
-			delete_label := fmt.ctprintf("X##%s", label)
-			if imgui.SmallButton(delete_label) {
-				unordered_remove(&walls, i)
-				state.entity = nil
-			}
-		}
-	}
-	if imgui.CollapsingHeader("Point Lights", nil) {
-		for wall, i in point_lights {
+
+	if imgui.CollapsingHeader("Lights", nil) {
+		for light, i in game.lights {
 			label := fmt.ctprintf("light-%d", i)
 			if imgui.Button(label) {
-				state.entity = &point_lights[i]
+				state.entity_id = i
+				state.entity_type = .Light
 			}
 			imgui.SameLine()
 			delete_label := fmt.ctprintf("X##%s", label)
 			if imgui.SmallButton(delete_label) {
-				unordered_remove(&point_lights, i)
-				state.entity = nil
+				unordered_remove(&game.lights, i)
+				if state.entity_id == i {
+					state.entity_id = -1
+				}
 			}
 		}
 	}
 
 	if imgui.Button("Sword") {
-		state.entity = &sword
+		// state.entity = &sword
 	}
 
 	imgui.End()
 
-	enitity_window(state.entity)
+	enitity_window()
 
     imgui.Render()
     imgui_gl.RenderDrawData(imgui.GetDrawData())
@@ -142,30 +138,27 @@ render :: proc() {
     }
 }
 
-enitity_window :: proc(entity: game.Thing) {
+enitity_window :: proc() {
 	imgui.Begin("Entity", nil, nil)
 	defer imgui.End()
 
-	if entity == nil {
+	if state.entity_id == -1 {
 		return
 	}
 
-
-	switch v in entity {
-	case ^game.PointLight:
-		point_light_edit(v)
-	case ^game.Ground:
-		transform_edit(&v.entity)
-	case ^game.Wall:
-		transform_edit(&v.entity)
-	case ^game.Door:
-		transform_edit(&v.entity)
-	case ^game.Sword:
-		transform_edit(&v.entity)
+	switch state.entity_type {
+		case .Entity:
+			entity_edit(&game.entities[state.entity_id])
+		case .Light:
+			point_light_edit(&game.lights[state.entity_id])
 	}
 }
 
-transform_edit :: proc(e: ^game.Entity) {
+entity_edit :: proc(e: ^game.Ent) {
+	transform_edit(&e.transform)
+}
+
+transform_edit :: proc(e: ^game.Transform) {
 	imgui.DragFloat3Ex("Position", transmute(^[3]f32)&e.pos, 0.2, -99999, 99999, nil, nil)
 	imgui.DragFloat3Ex("Rotation", transmute(^[3]f32)&e.rot, 0.2, -180, 180, nil, nil)
 	imgui.DragFloat3Ex("Scale", transmute(^[3]f32)&e.scale, 0.2, -99999, 99999, nil, nil)
@@ -178,4 +171,8 @@ point_light_edit :: proc(p: ^game.PointLight) {
 	imgui.DragFloatEx("Ambient", &p.ambient, 0.05, 0, 120, nil, nil)
 	imgui.DragFloatEx("Diffuse", &p.diffuse, 0.05, 0, 120, nil, nil)
 	imgui.DragFloatEx("Specular", &p.specular, 0.05, 0, 120, nil, nil)
+}
+
+is_selected :: proc(type: EntityType, id: int) -> bool {
+	return state.entity_type == type && state.entity_id == id
 }

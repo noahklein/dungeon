@@ -13,7 +13,6 @@ import "debug"
 import "gui"
 import "game"
 
-
 SCREEN :: [2]i32{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
 TITLE :: "Dungeon"
@@ -158,10 +157,6 @@ main :: proc() {
 			input += {.FlyDown}
 		}
 	
-		if glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
-			input += {.Absorb_Light}
-
-		}
 		view := game.update(dt, input)
 
 		// view := game.look_at(game.cam)
@@ -175,7 +170,7 @@ main :: proc() {
 		gl.UseProgram(shader.id)
 		render.setMat4(shader.id, "projection", &projection[0, 0])
 		render.setMat4(shader.id, "view", &view[0, 0])
-		for light, i in game.world.point_lights {
+		for light, i in game.lights {
 			name := fmt.tprintf("pointLights[%d]", i)
 			render.setStruct(shader.id, name, game.PointLight, light)
 		}
@@ -189,40 +184,29 @@ main :: proc() {
 		gl.BindTextureUnit(katana_tex.unit, katana_tex.id)
 		gl.BindTextureUnit(katana_norm_tex.unit, katana_norm_tex.id)
 
-		for wall, i in game.world.walls {
-			model := game.entity_model(wall)
-			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 20)
+		for entity, i in game.entities {
+			tex := entity.texture.? or_else {}
+			model := game.transform_model(entity.transform)
+			render.mesh_draw(&cube_mesh, model, tex.unit, tex.tiling)
 
-			// Draw editor outline.
 			when ODIN_DEBUG {
-				if gui.state.entity == &game.world.walls[i] {
+				if gui.is_selected(.Entity, i) {
 					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
 					render.mesh_draw(&cube_mesh, m, 100, 1)
 				}
 			}
-		}
-		for ground, i in game.world.grounds {
-			model := game.entity_model(ground)
-			render.mesh_draw(&cube_mesh, model, ground_tex.unit, 25)
 
-			// Draw editor outline.
-			when ODIN_DEBUG {
-				if gui.state.entity == &game.world.grounds[i] {
-					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(&cube_mesh, m, 100, 1)
-				}
-			}
 		}
 
 		// Draw light
-		for light, i in game.world.point_lights {
+		for light, i in game.lights {
 			// game.world.point_lights[i].radius = i32(glm.sin(prev_frame_time) * 10 + 10)
 			model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
 			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 1)
 
 			// Draw editor outline.
 			when ODIN_DEBUG {
-				if gui.state.entity == &game.world.point_lights[i] {
+				if gui.is_selected(.Light, i) {
 					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
 					render.mesh_draw(&cube_mesh, m, 100, 1)
 				}
@@ -236,7 +220,9 @@ main :: proc() {
 			camera_transform := glm.inverse(view)
 			// model := glm.mat4Translate(cam.forward) * glm.mat4Translate(cam.pos)
 			// model = game.entity_model(game.world.sword) * model
-			model := camera_transform * game.entity_model(game.world.sword)
+			using game.world.sword
+			transform := game.Transform{pos = pos, rot = rot, scale = scale}
+			model := camera_transform * game.transform_model(transform)
 			render.mesh_draw(&katana_mesh, model, katana_tex.unit, 1)
 			render.mesh_flush(&katana_mesh)
 		}
