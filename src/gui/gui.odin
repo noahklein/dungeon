@@ -11,6 +11,7 @@ import imgui_glfw "../libs/imgui/imgui_impl_glfw"
 import imgui_gl "../libs/imgui/imgui_impl_opengl3"
 
 import "../game"
+import "../render"
 
 EntityType :: enum {
 	Entity,
@@ -49,7 +50,7 @@ shutdown :: proc() {
     imgui.DestroyContext(nil)
 }
 
-render :: proc() {
+draw :: proc() {
     imgui_gl.NewFrame()
     imgui_glfw.NewFrame()
     imgui.NewFrame()
@@ -156,12 +157,37 @@ enitity_window :: proc() {
 
 entity_edit :: proc(e: ^game.Ent) {
 	transform_edit(&e.transform)
+	if imgui.CollapsingHeader("Texture", nil) {
+		texture_edit(&e.texture)
+		// imgui.ComboChar("Texture", &idx, &items[0], i32(len(items)))
+		// unit := i32(e.texture.unit)
+		// if imgui.ComboChar("Texture", &unit, &render.TEXTURE_PATHS[0], i32(len(render.TEXTURE_PATHS))) {
+		// 	e.texture.unit = u32(unit)
+		// }
+	}
 }
 
 transform_edit :: proc(e: ^game.Transform) {
 	imgui.DragFloat3Ex("Position", transmute(^[3]f32)&e.pos, 0.2, -99999, 99999, nil, nil)
 	imgui.DragFloat3Ex("Rotation", transmute(^[3]f32)&e.rot, 0.2, -180, 180, nil, nil)
 	imgui.DragFloat3Ex("Scale", transmute(^[3]f32)&e.scale, 0.2, -99999, 99999, nil, nil)
+}
+
+texture_edit :: proc(tex: ^game.Texture) {
+	unit := i32(tex.unit)
+	// imgui.ComboChar("Texture", &unit, raw_data(render.TEXTURE_PATHS[:]), i32(len(render.TEXTURE_PATHS)))
+	imgui.Combo("Texture", &unit, render.TEXTURE_PATHS[0])
+	// if imgui.BeginCombo("Texture", render.TEXTURE_PATHS[tex.unit], nil) {
+	// 	for path, unit in render.TEXTURE_PATHS {
+	// 		if imgui.Selectable(path) {
+	// 			tex.unit = u32(unit)
+	// 		}
+	// 	}
+	// 	imgui.EndCombo()
+	// }
+
+	imgui.DragScalar("Unit", .U32, &tex.unit)
+	imgui.DragScalar("Tiling", .U32, &tex.tiling)
 }
 
 point_light_edit :: proc(p: ^game.PointLight) {

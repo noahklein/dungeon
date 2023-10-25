@@ -84,6 +84,9 @@ main :: proc() {
 	defer gui.shutdown()
 
     // Assets
+	render.assets_init()
+	defer render.assets_deinit()
+
     cube_obj, cube_obj_err := render.load_obj("assets/cube.obj")
     if cube_obj_err != nil {
         fmt.eprintln("Failed to load cube.obj:", cube_obj_err)
@@ -105,16 +108,6 @@ main :: proc() {
 		fmt.eprintln("Failed to load shaders/main.glsl:", shader_err)
 		return
 	}
-
-	brick_tex := render.texture_load(0, "assets/brick.jpg")
-	brick_norm_tex := render.texture_load(1, "assets/brick_norm.jpg")
-	ground_tex := render.texture_load(2, "assets/ground.png")
-	ground_norm_tex := render.texture_load(3, "assets/ground_norm.png")
-	door_tex := render.texture_load(4, "assets/door.png")
-	door_norm_tex := render.texture_load(5, "assets/door_norm.png")
-	katana_tex := render.texture_load(6, "assets/katana/katana.png")
-	katana_norm_tex := render.texture_load(7, "assets/katana/katana_norm.png")
-	textures := [?]i32{0, 1, 2, 3, 4, 5, 6, 7}
 
 	game.world_load("config.json")
 	game.init_camera(ASPECT)
@@ -175,19 +168,15 @@ main :: proc() {
 			render.setStruct(shader.id, name, game.PointLight, light)
 		}
 		render.setFloat3(shader.id, "camPos", game.cam.pos);
-		render.setIntArray(shader.id, "textures", len(textures), &textures[0])
+		render.setIntArray(shader.id, "textures", i32(len(render.assets.texture_units)), &render.assets.texture_units[0])
 
-		gl.BindTextureUnit(brick_tex.unit, brick_tex.id)
-		gl.BindTextureUnit(brick_norm_tex.unit, brick_norm_tex.id)
-		gl.BindTextureUnit(ground_tex.unit, ground_tex.id)
-		gl.BindTextureUnit(ground_norm_tex.unit, ground_norm_tex.id)
-		gl.BindTextureUnit(katana_tex.unit, katana_tex.id)
-		gl.BindTextureUnit(katana_norm_tex.unit, katana_norm_tex.id)
+		for tex in render.assets.textures {
+			gl.BindTextureUnit(tex.unit, tex.id)
+		}
 
 		for entity, i in game.entities {
-			tex := entity.texture.? or_else {}
 			model := game.transform_model(entity.transform)
-			render.mesh_draw(&cube_mesh, model, tex.unit, tex.tiling)
+			render.mesh_draw(&cube_mesh, model, entity.texture.unit, entity.texture.tiling)
 
 			when ODIN_DEBUG {
 				if gui.is_selected(.Entity, i) {
@@ -202,7 +191,7 @@ main :: proc() {
 		for light, i in game.lights {
 			// game.world.point_lights[i].radius = i32(glm.sin(prev_frame_time) * 10 + 10)
 			model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
-			render.mesh_draw(&cube_mesh, model, brick_tex.unit, 1)
+			render.mesh_draw(&cube_mesh, model, 0, 0)
 
 			// Draw editor outline.
 			when ODIN_DEBUG {
@@ -223,12 +212,12 @@ main :: proc() {
 			using game.world.sword
 			transform := game.Transform{pos = pos, rot = rot, scale = scale}
 			model := camera_transform * game.transform_model(transform)
-			render.mesh_draw(&katana_mesh, model, katana_tex.unit, 1)
+			render.mesh_draw(&katana_mesh, model, 6, 1)
 			render.mesh_flush(&katana_mesh)
 		}
 
 		when ODIN_DEBUG {
-			gui.render()
+			gui.draw()
 			render.watch(&shader)
 			if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
 				break

@@ -5,6 +5,7 @@ import "core:fmt"
 
 // Mesh renderer
 Mesh :: struct {
+    name: cstring,
     vao, vbo, ibo: u32,
     verts: []Vertex,
     instances: [dynamic]Instance,

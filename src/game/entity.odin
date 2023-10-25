@@ -19,9 +19,9 @@ Transform :: struct {
 // TODO: lots of wasted bytes, sparse arrays would be more memory efficient.
 Ent :: struct {
     using transform: Transform,
+    texture: Texture,
     rigidbody: Maybe(Rigidbody),
     collider: Maybe(Collider),
-    texture: Maybe(Texture)
 }
 
 EntityList :: [dynamic]Ent
@@ -33,22 +33,11 @@ Texture :: struct {
     unit, tiling: u32,
 }
 
-Entity :: struct {
-    pos: glm.vec3,
-    scale: glm.vec3,
-    rot: glm.vec3, // euler angles
-}
 
 Chunk :: struct {
-    grounds: [dynamic]Ground,
-    walls: [dynamic]Wall,
-    doors: [dynamic]Door,
-    point_lights: [dynamic]PointLight,
     sword: Sword,
 }
-
-world := Chunk{
-}
+world := Chunk{}
 
 transform_model :: proc(e: Transform) -> glm.mat4 {
     quat := glm.quatFromEuler(e.rot)
@@ -60,34 +49,22 @@ Level :: struct {
     lights: [dynamic]PointLight,
 }
 
-Ground :: struct {
-    using entity: Entity
-}
-
-Wall :: struct {
-    using entity: Entity
-}
-
-Door :: struct {
-    using entity: Entity
-}
-
 Sword :: struct {
     using entity: Entity,
     light: PointLight,
 }
 
+Entity :: struct {
+    pos: glm.vec3,
+    scale: glm.vec3,
+    rot: glm.vec3, // euler angles
+}
+
 Thing :: union {
-    ^PointLight,
-    ^Ground, ^Wall, ^Door,
     ^Sword,
 }
 
 deinit_world :: proc() {
-    delete(world.doors)
-    delete(world.grounds)
-    delete(world.walls)
-    delete(world.point_lights)
     delete(lights)
     delete(entities)
 }
