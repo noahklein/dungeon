@@ -18,6 +18,7 @@ EntityType :: enum {
 	Light,
 }
 State :: struct {
+	io: ^imgui.IO,
 	entity_id: int,
 	entity_type: EntityType,
 }
@@ -38,6 +39,7 @@ init :: proc(window: glfw.WindowHandle) {
 		style.WindowRounding = 0
 		style.Colors[imgui.Col.WindowBg].w = 1
 	}
+	state.io = io
 	imgui.StyleColorsDark(nil)
 
 	imgui_glfw.InitForOpenGL(window, true)
@@ -72,12 +74,8 @@ draw :: proc() {
 					radius = 10,
 					ambient = 0.25, diffuse = 0.5, specular = 0.75,
 					color = glm.vec3(1),
-					// ambient = glm.vec3(0.25),
-					// diffuse = glm.vec3(0.5),
-					// specular = glm.vec3(0.75),
 				})
 				state.entity_type = .Light
-				// state.entity = &point_lights[len(point_lights) - 1]
 			}
 			imgui.EndMenu()
 		}
@@ -201,4 +199,8 @@ point_light_edit :: proc(p: ^game.PointLight) {
 
 is_selected :: proc(type: EntityType, id: int) -> bool {
 	return state.entity_type == type && state.entity_id == id
+}
+
+want_capture_mouse :: proc() -> bool {
+	return state.io.WantCaptureMouse
 }

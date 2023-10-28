@@ -12,12 +12,15 @@ import "render"
 import "debug"
 import "gui"
 import "game"
+import "storage"
+import "physics"
 
-SCREEN :: [2]i32{1600, 1200}
+SCREEN :: glm.vec2{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
 TITLE :: "Dungeon"
 
 cursor_hidden := true
+mouse_coords : glm.vec2
 
 main :: proc() {
 	when ODIN_DEBUG {
@@ -51,7 +54,7 @@ main :: proc() {
     }
     defer glfw.Terminate()
 
-    window := glfw.CreateWindow(SCREEN.x, SCREEN.y, TITLE, nil, nil)
+    window := glfw.CreateWindow(i32(SCREEN.x), i32(SCREEN.y), TITLE, nil, nil)
 	if window == nil {
 		fmt.eprint("GLFW failed to create window")
 		return
@@ -84,7 +87,9 @@ main :: proc() {
 	defer gui.shutdown()
 
     // Assets
-	render.assets_init()
+	if err := render.assets_init(); err != nil {
+		return
+	}
 	defer render.assets_deinit()
 
     cube_obj, cube_obj_err := render.load_obj("assets/cube.obj")
@@ -95,17 +100,13 @@ main :: proc() {
 	cube_mesh := render.mesh_init(cube_obj)
 	defer render.mesh_deinit(&cube_mesh)
 
-    katana_obj, katana_obj_err := render.load_obj("assets/katana/katana.obj")
-    if katana_obj_err != nil {
-        fmt.eprintln("Failed to load katana.obj:", katana_obj_err)
-        return
-    }
-	katana_mesh := render.mesh_init(katana_obj)
-	defer render.mesh_deinit(&katana_mesh)
+	
+	shape_renderer := render.shapes_init()
 
-	shader, shader_err := render.shader_load("assets/shaders/main.glsl")
-	if shader_err != nil {
-		fmt.eprintln("Failed to load shaders/main.glsl:", shader_err)
+	render.quad_renderer_init(render.assets.shaders.quad)
+
+	mouse_pick, mouse_pick_ok := render.mouse_picking_init(SCREEN)
+	if !mouse_pick_ok {
 		return
 	}
 
@@ -152,52 +153,62 @@ main :: proc() {
 	
 		view := game.update(dt, input)
 
-		// view := game.look_at(game.cam)
-
         glfw.PollEvents()
 
-        gl.ClearColor(0, 0, 0, 1)
+		// @Cleanup: move to centralized input handler.
+		if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
+			hovered_id := render.mouse_picking_read(mouse_pick, mouse_coords)
+			if hovered_id > 0 && hovered_id < 999999 {
+				gui.state.entity_id = hovered_id - 1
+			} else {
+				gui.state.entity_id = -1
+			}
+		}
+
+		// Draw scene to framebuffer
+		gl.BindFramebuffer(gl.FRAMEBUFFER, mouse_pick.fbo)
+
+        gl.ClearColor(0.1, 0.1, 0.1, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) 
+		gl.Enable(gl.DEPTH_TEST)
 
 		// Draw cube
-		gl.UseProgram(shader.id)
-		render.setMat4(shader.id, "projection", &projection[0, 0])
-		render.setMat4(shader.id, "view", &view[0, 0])
+		main_shader := render.assets.shaders.main
+		gl.UseProgram(main_shader.id)
+		render.setMat4(main_shader.id, "projection", &projection[0, 0])
+		render.setMat4(main_shader.id, "view", &view[0, 0])
 		for light, i in game.lights {
 			name := fmt.tprintf("pointLights[%d]", i)
-			render.setStruct(shader.id, name, game.PointLight, light)
+			render.setStruct(main_shader.id, name, game.PointLight, light)
 		}
-		render.setFloat3(shader.id, "camPos", game.cam.pos);
-		render.setIntArray(shader.id, "textures", i32(len(render.assets.texture_units)), &render.assets.texture_units[0])
+		render.setFloat3(main_shader.id, "camPos", game.cam.pos);
+		render.setIntArray(main_shader.id, "textures", i32(len(render.assets.texture_units)), &render.assets.texture_units[0])
 
 		for tex in render.assets.textures {
 			gl.BindTextureUnit(tex.unit, tex.id)
 		}
 
 		for entity, i in game.entities {
+			ent_id := i32(i + 1)
 			model := game.transform_model(entity.transform)
-			render.mesh_draw(&cube_mesh, model, entity.texture.unit, entity.texture.tiling)
+			render.mesh_draw(&cube_mesh, model, entity.texture.unit, entity.texture.tiling, ent_id)
 
 			when ODIN_DEBUG {
 				if gui.is_selected(.Entity, i) {
 					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(&cube_mesh, m, 100, 1)
+					render.mesh_draw(&cube_mesh, m, 100, 1, ent_id)
 				}
 			}
-
 		}
 
 		// Draw light
 		for light, i in game.lights {
-			// game.world.point_lights[i].radius = i32(glm.sin(prev_frame_time) * 10 + 10)
-			model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
-			render.mesh_draw(&cube_mesh, model, 0, 0)
-
 			// Draw editor outline.
 			when ODIN_DEBUG {
+				model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
 				if gui.is_selected(.Light, i) {
 					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(&cube_mesh, m, 100, 1)
+					render.mesh_draw(&cube_mesh, m, 100, 1, -1)
 				}
 			}
 		}
@@ -205,24 +216,51 @@ main :: proc() {
 		render.mesh_flush(&cube_mesh)
 
 		{
-			// Draw sword.
-			camera_transform := glm.inverse(view)
-			// model := glm.mat4Translate(cam.forward) * glm.mat4Translate(cam.pos)
-			// model = game.entity_model(game.world.sword) * model
-			using game.world.sword
-			transform := game.Transform{pos = pos, rot = rot, scale = scale}
-			model := camera_transform * game.transform_model(transform)
-			render.mesh_draw(&katana_mesh, model, 6, 1)
-			render.mesh_flush(&katana_mesh)
+			line_shader := render.assets.shaders.line
+			// Draw lines
+			gl.UseProgram(line_shader.id)
+			render.setMat4(line_shader.id, "projection", &projection[0, 0])
+			render.setMat4(line_shader.id, "view", &view[0, 0])
+			render.setFloat4(line_shader.id, "color", [4]f32{1, 1, 1, 1})
+
+			// Cone
+			start := glm.vec3{0, 3, 0}
+			for i in 0..=10 {
+				end := glm.vec3{glm.sin(f32(i)), 0, glm.cos(f32(i))}
+				render.draw_line(&shape_renderer, start, end)
+			}
 		}
+
+		{
+			// Draw to screen
+			gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+			gl.ClearColor(1.0, 1.0, 1.0, 1.0); 
+			gl.Clear(gl.COLOR_BUFFER_BIT);
+			gl.Disable(gl.DEPTH_TEST)
+			render.draw_quad(mouse_pick.tex)
+		}
+
+		// {
+		// 	// Draw sword.
+		// 	camera_transform := glm.inverse(view)
+		// 	using game.world.sword
+		// 	transform := game.Transform{pos = pos, rot = rot, scale = scale}
+		// 	model := camera_transform * game.transform_model(transform)
+		// 	render.mesh_draw(&katana_mesh, model, 6, 1)
+		// 	render.mesh_flush(&katana_mesh)
+		// }
+
+
 
 		when ODIN_DEBUG {
 			gui.draw()
-			render.watch(&shader)
+			render.watch(&main_shader)
+			render.watch(&render.assets.shaders.quad)
 			if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
 				break
 			}
 		}
+
         glfw.SwapBuffers(window)
         free_all(context.temp_allocator)
     }
@@ -232,7 +270,11 @@ mouse_callback :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
 	context = runtime.default_context()
 	if cursor_hidden {
 		game.on_mouse_move(&game.cam, {f32(xpos), f32(ypos)})
+		return
 	}
+
+	mouse_coords.x = f32(xpos)
+	mouse_coords.y = SCREEN.y - f32(ypos)
 }
 
 mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
@@ -257,9 +299,3 @@ key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods
 	}
 }
 
-print_mat :: proc(m: glm.mat4) {
-	fmt.println(m[0])
-	fmt.println(m[1])
-	fmt.println(m[2])
-	fmt.println(m[3])
-}

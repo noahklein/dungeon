@@ -12,7 +12,6 @@ TransformId :: distinct u16
 
 Transform :: struct {
     pos, scale, rot: glm.vec3,
-    parent_id: Maybe(TransformId),
 }
 
 // TODO: rename to Entity
@@ -20,8 +19,7 @@ Transform :: struct {
 Ent :: struct {
     using transform: Transform,
     texture: Texture,
-    rigidbody: Maybe(Rigidbody),
-    collider: Maybe(Collider),
+    flags: bit_set[EntityFlags],
 }
 
 EntityList :: [dynamic]Ent
@@ -29,10 +27,13 @@ entities : EntityList
 
 lights : [dynamic]PointLight
 
+EntityFlags :: enum {
+    CameraRelative,
+}
+
 Texture :: struct {
     unit, tiling: u32,
 }
-
 
 Chunk :: struct {
     sword: Sword,
@@ -41,7 +42,7 @@ world := Chunk{}
 
 transform_model :: proc(e: Transform) -> glm.mat4 {
     quat := glm.quatFromEuler(e.rot)
-    return  glm.mat4Translate(e.scale / 2) * glm.mat4Translate(e.pos) * glm.mat4FromQuat(quat) * glm.mat4Scale(e.scale)
+    return glm.mat4Translate(e.scale / 2) * glm.mat4Translate(e.pos) * glm.mat4FromQuat(quat) * glm.mat4Scale(e.scale)
 }
 
 Level :: struct {

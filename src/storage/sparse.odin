@@ -31,6 +31,10 @@ Dense :: struct($T: typeid) {
     deleted: [dynamic]u16, // Stack containing deleted indices.
 }
 
+dense_init :: proc() {
+
+}
+
 @(require_results)
 dense_add :: proc(d: ^Dense($T), val: T) -> DenseID {
     if len(d.deleted) != 0 {

@@ -2,21 +2,39 @@ package game
 
 import glm "core:math/linalg/glsl"
 
-GRAVITY :: -9.81
+EPSILON :: 0.0001
 
-Rigidbody :: struct {
-    velocity, force: glm.vec3,
-    mass: f32,
+Plane :: struct {
+    center, normal: glm.vec3,
 }
 
-Collider :: union{
-    // Capsule,
-    Sphere,
+raycast_plane :: proc(plane: Plane, origin, dir: glm.vec3) -> bool {
+    denom := glm.dot(plane.normal, dir)
+    if abs(denom) <= EPSILON {
+        return false // We're perpendicular.
+    }
+
+    t := glm.dot(plane.center - origin, plane.normal) / denom
+    return t > EPSILON
 }
 
-Sphere :: struct {
-    radius: f32,
+Box :: struct {
+    min, max: glm.vec3,
 }
-Capsule :: struct {
-    radius: f32,
+
+// See https://tavianator.com/2011/ray_box.html.
+raycast_box :: proc(box: Box, origin, dir: glm.vec3) -> (glm.vec3, bool) {
+    min_dist := (box.min - origin) / dir
+    max_dist := (box.max - origin) / dir
+
+    // Normalize
+    mins := glm.min(min_dist, max_dist)
+    maxs := glm.max(min_dist, max_dist)
+
+    smallest := min(mins.x, mins.y, mins.z)
+    biggest  := max(maxs.x, maxs.y, maxs.z)
+
+    is_hit := biggest >= 0 && biggest >= smallest
+    hit_point := origin + (smallest * dir)
+    return hit_point, is_hit
 }

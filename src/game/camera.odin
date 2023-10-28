@@ -64,3 +64,22 @@ on_mouse_move :: proc(c: ^Camera, mouse: glm.vec2) {
     })
     c.right = glm.normalize(glm.cross(c.forward, glm.vec3{0, 1, 0}))
 }
+
+mouse_to_ray :: proc(c: Camera, mouse: glm.vec2, screen_size: glm.vec2) -> glm.vec3 {
+    // Put in range -1..=1
+    norm_device_coords := glm.vec4{
+        (2 * mouse.x) / screen_size.x - 1,
+        1 - (2 * mouse.y) / screen_size.y,
+        -1, // Point forwards
+        1,
+    }
+
+    proj, view := projection(c), look_at(c)
+
+    ray_eye := glm.inverse(proj) * norm_device_coords
+    ray_eye.z = -1
+    ray_eye.w = 0
+
+    ray_world := glm.inverse(view) * ray_eye
+    return glm.normalize_vec3(ray_world.xyz)
+}

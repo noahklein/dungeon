@@ -20,6 +20,7 @@ Vertex :: struct {
 Instance :: struct {
     texture: [2]u32,
     transform: matrix[4, 4]f32,
+    entity_id: i32,
 }
 
 MAX_INSTANCES :: 30
@@ -68,6 +69,10 @@ mesh_init :: proc(obj: Obj) -> Mesh {
         gl.VertexAttribDivisor(id, 1)
     }
 
+    gl.EnableVertexAttribArray(8)
+    gl.VertexAttribIPointer(8, 1, gl.INT, size_of(Instance), offset_of(Instance, entity_id))
+    gl.VertexAttribDivisor(8, 1)
+
     return m
 }
 
@@ -79,7 +84,7 @@ mesh_deinit :: proc(m: ^Mesh) {
     delete(m.verts)
 }
 
-mesh_draw :: proc(m: ^Mesh, transform: matrix[4, 4]f32, tex_unit, tiling: u32) {
+mesh_draw :: proc(m: ^Mesh, transform: matrix[4, 4]f32, tex_unit, tiling: u32, entity_id: i32) {
     if len(m.instances) + 1 >= MAX_INSTANCES {
         mesh_flush(m)
     }
@@ -87,6 +92,7 @@ mesh_draw :: proc(m: ^Mesh, transform: matrix[4, 4]f32, tex_unit, tiling: u32) {
     append(&m.instances, Instance{
         texture = [2]u32{tex_unit, tiling},
         transform = transform,
+        entity_id = entity_id,
     })
 }
 
