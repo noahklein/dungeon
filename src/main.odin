@@ -49,7 +49,7 @@ main :: proc() {
 	defer game.deinit_world()
 
 	// Initialize glfw and window
-    if glfw.Init() == 0 {
+    if !glfw.Init() {
         fmt.eprintln("GLFW init failed")
     }
     defer glfw.Terminate()

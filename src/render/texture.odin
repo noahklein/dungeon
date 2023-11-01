@@ -102,14 +102,13 @@ MousePicking :: struct {
 	tex, entity_id_tex: u32,
 }
 
+// TODO: Resize framebuffer components on window resize.
 mouse_picking_init :: proc(screen: glm.vec2) -> (mp: MousePicking, ok: bool) {
 	size := glm.ivec2{i32(screen.x), i32(screen.y)}
 
 	gl.GenFramebuffers(1, &mp.fbo)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, mp.fbo)
 	defer gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-
-	// defer gl.BindTexture(gl.TEXTURE_2D, 0)
 
 	// Color texture
 	tex := texture_init(0, TextureOptions{
