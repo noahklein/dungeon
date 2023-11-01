@@ -112,6 +112,7 @@ main :: proc() {
 
 	game.world_load("config.json")
 	game.init_camera(ASPECT)
+	game.start_turn(0)
 
 	projection := game.projection(game.cam)
 
@@ -125,7 +126,7 @@ main :: proc() {
 		frames += 1
 		now := f32(glfw.GetTime())
 		if now - prev_second >= 1 {
-			fmt.println(1000/f32(frames), "ms/frame", frames, "FPS")
+			// fmt.println(1000/f32(frames), "ms/frame", frames, "FPS")
 			frames = 0
 			prev_second = now
         }
@@ -155,14 +156,17 @@ main :: proc() {
 
         glfw.PollEvents()
 
+		hovered_id := i32(render.mouse_picking_read(mouse_pick, mouse_coords))
+		if hovered_id < 0 || hovered_id > 99999 {
+			hovered_id = -1
+		}
 		// @Cleanup: move to centralized input handler.
 		if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
-			hovered_id := render.mouse_picking_read(mouse_pick, mouse_coords)
-			if hovered_id > 0 && hovered_id < 999999 {
-				gui.state.entity_id = hovered_id - 1
-			} else {
-				gui.state.entity_id = -1
-			}
+			already_there := hovered_id == game.fight.players[game.fight.active_player].coord
+			if hovered_id >= 0 && !already_there && hovered_id in game.path_finding.visited {
+				game.move_player(game.fight.active_player, hovered_id)
+				game.start_turn(game.fight.active_player)
+			} 
 		}
 
 		// Draw scene to framebuffer
@@ -188,27 +192,59 @@ main :: proc() {
 			gl.BindTextureUnit(tex.unit, tex.id)
 		}
 
-		for entity, i in game.entities {
-			ent_id := i32(i + 1)
-			model := game.transform_model(entity.transform)
-			render.mesh_draw(&cube_mesh, model, entity.texture.unit, entity.texture.tiling, ent_id)
+		for tile, i in game.fight.level {
+			i := i32(i)
 
-			when ODIN_DEBUG {
-				if gui.is_selected(.Entity, i) {
-					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(&cube_mesh, m, 100, 1, ent_id)
-				}
+			pos := game.fight_tile_pos(i)
+			scale := glm.vec3(1)
+
+			model := game.transform_model({ pos = pos, scale = scale})
+
+			switch tile.type {
+				case .Void:
+					continue
+				case .Ground:
+					render.mesh_draw(&cube_mesh, render.Instance{
+						transform = model,
+						texture = {2, 10},
+						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
+						entity_id = i,
+					})
+				case .Wall:
+					render.mesh_draw(&cube_mesh, render.Instance{
+						transform = model,
+						texture = {0, 1},
+						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
+						entity_id = i,
+					}) 
 			}
 		}
 
+		// for entity, i in game.entities {
+		// 	ent_id := i32(i + 1)
+		// 	model := game.transform_model(entity.transform)
+		// 	render.mesh_draw(&cube_mesh, model, entity.texture.unit, entity.texture.tiling, ent_id)
+
+		// 	when ODIN_DEBUG {
+		// 		if gui.is_selected(.Entity, i) {
+		// 			m := model * glm.mat4Scale({1.01, 1.01, 1.01})
+		// 			render.mesh_draw(&cube_mesh, m, 100, 1, ent_id)
+		// 		}
+		// 	}
+		// }
+
 		// Draw light
 		for light, i in game.lights {
-			// Draw editor outline.
 			when ODIN_DEBUG {
 				model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
+				// Draw editor outline.
 				if gui.is_selected(.Light, i) {
 					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(&cube_mesh, m, 100, 1, -1)
+					render.mesh_draw(&cube_mesh, render.Instance{
+						transform = m,
+						texture = {100, 1},
+						entity_id = -1,
+					}) 
 				}
 			}
 		}
@@ -216,17 +252,67 @@ main :: proc() {
 		render.mesh_flush(&cube_mesh)
 
 		{
+			ninja := render.mesh(.Ninja)
+			scale := glm.vec3(0.2)
+			for player, i in game.fight.players {
+				pos := game.fight_tile_pos(player.coord)
+				pos.y += 1.4
+				render.mesh_draw(ninja, render.Instance{
+					transform = game.transform_model({pos = pos, scale = scale}),
+					texture = {2, 1},
+					color = {0.3, 0.3, 0.3, 1},
+					entity_id = i32(player.coord),
+				})
+			}
+
+			render.mesh_flush(ninja)
+		}
+
+		{
+			quad := render.mesh(.Quad)
+			scale := glm.vec3{1, 1, 1}
+
+			// Draw cursor border over hovered tile
+			if hovered_id >= 0 {
+				pos := game.fight_tile_pos(hovered_id)
+				pos.y += 1.01
+				render.mesh_draw(quad, render.Instance{
+					transform = game.transform_model({ pos = pos, scale = scale}),
+					texture = {4, 1},
+					entity_id = i32(hovered_id),
+				})
+			}
+
+			// Draw pathfinding results
+			for id in game.path_finding.visited {
+				pos := game.fight_tile_pos(id)
+				pos.y += 1.02
+
+				render.mesh_draw(quad, render.Instance{
+					transform = game.transform_model({pos = pos, scale = scale}),
+					color = {0, 0, 1, 0.5},
+					entity_id = i32(id),
+				})
+			}
+
+			render.mesh_flush(quad)
+		}
+
+		{
 			line_shader := render.assets.shaders.line
 			// Draw lines
 			gl.UseProgram(line_shader.id)
 			render.setMat4(line_shader.id, "projection", &projection[0, 0])
 			render.setMat4(line_shader.id, "view", &view[0, 0])
-			render.setFloat4(line_shader.id, "color", [4]f32{1, 1, 1, 1})
+			color := [4]f32{(glm.sin(now) + 1) / 2, (glm.cos(now) + 1) / 2, 1, 1}
+			render.setFloat4(line_shader.id, "color", color)
 
 			// Cone
 			start := glm.vec3{0, 3, 0}
-			for i in 0..=10 {
-				end := glm.vec3{glm.sin(f32(i)), 0, glm.cos(f32(i))}
+			n := 3
+			step := 2 * glm.PI / f32(n)
+			for i in 0..=n {
+				end := glm.vec3{glm.sin(f32(i) * step), -1, glm.cos(f32(i) * step)}
 				render.draw_line(&shape_renderer, start, end)
 			}
 		}
@@ -240,21 +326,9 @@ main :: proc() {
 			render.draw_quad(mouse_pick.tex)
 		}
 
-		// {
-		// 	// Draw sword.
-		// 	camera_transform := glm.inverse(view)
-		// 	using game.world.sword
-		// 	transform := game.Transform{pos = pos, rot = rot, scale = scale}
-		// 	model := camera_transform * game.transform_model(transform)
-		// 	render.mesh_draw(&katana_mesh, model, 6, 1)
-		// 	render.mesh_flush(&katana_mesh)
-		// }
-
-
-
 		when ODIN_DEBUG {
 			gui.draw()
-			render.watch(&main_shader)
+			render.watch(&render.assets.shaders.main)
 			render.watch(&render.assets.shaders.quad)
 			if glfw.GetKey(window, glfw.KEY_ESCAPE) == glfw.PRESS {
 				break

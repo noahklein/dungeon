@@ -8,6 +8,7 @@ layout (location = 2) in vec2 texCoord;
 layout (location = 3) in ivec2 texture; // {unit, tiling}
 layout (location = 4) in mat4 transform;
 layout (location = 8) in int entityId;
+layout (location = 9) in vec4 color;
 
 uniform mat4 projection;
 uniform mat4 view;
@@ -17,6 +18,7 @@ out vec3 vNormal;
 out vec3 vPos;
 flat out ivec2 vTexture;
 flat out int vEntityId;
+flat out vec4 vColor;
 
 void main() {
     vPos = vec3(transform * vec4(pos, 1));
@@ -25,6 +27,7 @@ void main() {
     vNormal = normal;
     vTexture = texture;
     vEntityId = entityId;
+    vColor = color;
 }
 
 #type fragment
@@ -44,6 +47,7 @@ in vec2 vTexCoord;
 in vec3 vNormal;
 flat in ivec2 vTexture;
 flat in int vEntityId;
+flat in vec4 vColor;
 
 #define LIGHTS 4
 uniform PointLight pointLights[LIGHTS];
@@ -102,8 +106,13 @@ void main() {
         }
         result += calcPointLight(pointLights[i], normal, viewDir);
     }
-    // vec3 base = vec3(0.2, 0.2, 0.2)
-    vec3 base = vec3(0.2, 0.2, 0.2) * vec3(texture(textures[vTexture.x], vTexCoord * vTexture.y));
-    color = vec4(base + result, 1);
+    vec3 ambient = vec3(0.4, 0.4, 0.4);
+    result += ambient;
+    vec4 base = texture(textures[vTexture.x], vTexCoord * vTexture.y);
+    if (vColor != vec4(0, 0, 0, 0)) {
+        base = vColor;        
+    }
+    // color = vec4(result, 1.0) * base;
+    color = base;
     entityId = vEntityId;
 }

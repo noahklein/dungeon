@@ -24,7 +24,7 @@ init_camera :: proc(aspect: f32) {
         aspect = aspect,
         near = 0.1, far = 1000,
 
-        pos = {0, 0, 20},
+        pos = {0, 8, 20},
         forward = {0, 0, 1}, right = {1, 0, 0},
         yaw = -90, pitch = 0,
         sensitivity = {0.01, 0.01},

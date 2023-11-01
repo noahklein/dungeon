@@ -14,14 +14,28 @@ Texture :: struct {
 TextureOptions :: struct {
 	width, height: i32,
 	format: TextureFormat,
-	min_filter, mag_filter: i32,
-	wrap_s, wrap_t: i32,
+	min_filter, mag_filter: TextureFilter,
+	wrap_s, wrap_t: TextureWrap,
 }
 
 TextureFormat :: enum {
 	RGB,
 	RGBA,
 	RED_INT,
+}
+
+TextureFilter :: enum i32 {
+	// Color of nearest texel to coordinate.
+	NEAREST = gl.NEAREST,
+	// Interpolates between coordinate's neighboring texels.
+	LINEAR = gl.LINEAR,
+}
+
+TextureWrap :: enum i32 {
+	REPEAT = gl.REPEAT,
+	MIRRORED_REPEAT = gl.MIRRORED_REPEAT,
+	CLAMP_TO_EDGE = gl.CLAMP_TO_EDGE,
+	CLAMP_TO_BORDER = gl.CLAMP_TO_BORDER,
 }
 
 texture_format :: proc(tf: TextureFormat) -> (u32, u32) {
@@ -45,15 +59,11 @@ texture_init :: proc(unit: u32, opt: TextureOptions) -> Texture {
 
 	gl.CreateTextures(gl.TEXTURE_2D, 1, &tex.id)
 	gl.TextureStorage2D(tex.id, 1, internal, opt.width, opt.height)
-	gl.TextureParameteri(tex.id, gl.TEXTURE_MIN_FILTER, opt.min_filter)
-	gl.TextureParameteri(tex.id, gl.TEXTURE_MAG_FILTER, opt.mag_filter)
 
-	if opt.wrap_s != 0 {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, opt.wrap_s);
-	}
-	if opt.wrap_t != 0 {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, opt.wrap_t);
-	}
+	gl.TextureParameteri(tex.id, gl.TEXTURE_MIN_FILTER, i32(opt.min_filter))
+	gl.TextureParameteri(tex.id, gl.TEXTURE_MAG_FILTER, i32(opt.mag_filter))
+	gl.TextureParameteri(tex.id, gl.TEXTURE_WRAP_S, i32(opt.wrap_s));
+	gl.TextureParameteri(tex.id, gl.TEXTURE_WRAP_T, i32(opt.wrap_t));
 
     gl.BindTextureUnit(tex.unit, tex.id)
 
@@ -69,8 +79,8 @@ texture_load :: proc(unit: u32, path: cstring) -> Texture {
 	tex := texture_init(unit, TextureOptions{
 		width = width, height = height,
 		format = gl_format(channels),
-		min_filter = gl.LINEAR, mag_filter = gl.NEAREST,
-		wrap_s = gl.REPEAT, wrap_t = gl.REPEAT,
+		min_filter = .LINEAR, mag_filter = .NEAREST,
+		wrap_s = .REPEAT, wrap_t = .REPEAT,
 	})
 
 	gl.TextureSubImage2D(tex.id, 0, 0, 0, width, height, tex.format, gl.UNSIGNED_BYTE, img)
@@ -105,7 +115,8 @@ mouse_picking_init :: proc(screen: glm.vec2) -> (mp: MousePicking, ok: bool) {
 	tex := texture_init(0, TextureOptions{
 		width = size.x, height = size.y,
 		format = .RGB,
-		min_filter = gl.LINEAR, mag_filter = gl.LINEAR,
+		min_filter = .LINEAR, mag_filter = .LINEAR,
+		wrap_s = .REPEAT, wrap_t = .REPEAT,
 	})
 	mp.tex = tex.id
 
@@ -121,13 +132,11 @@ mouse_picking_init :: proc(screen: glm.vec2) -> (mp: MousePicking, ok: bool) {
 	entity_id_tex := texture_init(0, TextureOptions{
 		width = size.x, height = size.y, 
 		format = .RED_INT,
-		min_filter = gl.LINEAR, mag_filter = gl.LINEAR,
+		min_filter = .LINEAR, mag_filter = .LINEAR,
+		wrap_s = .REPEAT, wrap_t = .REPEAT,
 	})
 	mp.entity_id_tex = entity_id_tex.id
-	// gl.GenTextures(1, &mp.entity_id_tex)
-	// gl.BindTexture(gl.TEXTURE_2D, mp.entity_id_tex)
-	// gl.TexImage2D(gl.TEXTURE_2D, 0, gl.R32I, size.x, size.y,
-	// 	0, gl.RED_INTEGER, gl.INT, nil)
+
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, mp.entity_id_tex, 0)
 
 	gl.ReadBuffer(gl.NONE)

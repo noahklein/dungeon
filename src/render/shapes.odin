@@ -26,7 +26,7 @@ shapes_init :: proc() -> (s: Shapes) {
     return s
 }
 
-draw_line :: proc(s: ^Shapes, start, end: glm.vec3) {
+draw_line :: proc(s: ^Shapes, start, end: glm.vec3){
     gl.BindVertexArray(s.vao)
     gl.BindBuffer(gl.ARRAY_BUFFER, s.vbo)
 

@@ -118,10 +118,6 @@ draw :: proc() {
 		}
 	}
 
-	if imgui.Button("Sword") {
-		// state.entity = &sword
-	}
-
 	imgui.End()
 
 	enitity_window()

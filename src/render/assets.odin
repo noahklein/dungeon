@@ -2,6 +2,7 @@ package render
 
 import "core:mem"
 import "core:fmt"
+import gl "vendor:OpenGL"
 
 AssetLoadError :: enum{
     None,
@@ -20,7 +21,19 @@ TEXTURE_PATHS := []cstring{
 
 MESH_PATHS := []cstring{
     "assets/cube.obj",
+    "assets/quad.obj",
+    "assets/ninja.obj",
     // "assets/katana/katana.obj",
+}
+
+MeshId :: enum u8 {
+    Cube,
+    Quad,
+    Ninja,
+}
+
+mesh :: #force_inline proc(id: MeshId) -> ^Mesh {
+    return &assets.meshes[id]
 }
 
 Assets :: struct {
@@ -54,6 +67,35 @@ assets_init :: proc() -> AssetLoadError {
         append(&assets.textures, tex)
         append(&assets.texture_units, i32(i))
     }
+
+    {
+        // Border texture
+        SIZE :: 100
+        COLOR :: 0xFFFFFFFF
+
+        id := len(TEXTURE_PATHS)
+        border_tex := texture_init(u32(id), TextureOptions{
+            format = .RGBA, width = SIZE, height = SIZE,
+            mag_filter = .LINEAR, min_filter = .NEAREST,
+            wrap_s = .REPEAT, wrap_t = .REPEAT,
+        })
+
+        border_tex_data := [SIZE * SIZE]u32{}
+        for _, i in border_tex_data {
+            row, col := i / SIZE, i % SIZE
+            if row == 0 || row == SIZE - 1 || col == 0 || col == SIZE - 1 {
+                border_tex_data[i] = COLOR
+            }
+            
+        }
+
+        gl.TextureSubImage2D(border_tex.id, 0, 0, 0, SIZE, SIZE, gl.RGBA, gl.UNSIGNED_INT_8_8_8_8, &border_tex_data[0])
+
+        append(&assets.textures, border_tex)
+        append(&assets.texture_units, i32(id))
+    }
+
+
 
     for path, i in MESH_PATHS {
         obj, obj_err := load_obj(string(path))
