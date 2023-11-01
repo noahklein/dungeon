@@ -32,7 +32,7 @@ PlayerClass :: enum u8 {
 player_data := [PlayerClass]PlayerData{
     PlayerClass.Boxer = { moves = 3 },
     PlayerClass.Ranger = { moves = 4 },
-    PlayerClass.Ninja = { moves = 4 },
+    PlayerClass.Ninja = { moves = 3 },
 }
 
 Tile :: struct {
@@ -123,7 +123,7 @@ dfs_board :: proc(depth: int, pos: glm.ivec2) {
         return
     }
 
-    id := pos.x + (pos.y * fight.level_width)
+    id := pos.x + pos.y * fight.level_width
     if fight.level[id].type == .Void {
         return
     }
@@ -133,17 +133,6 @@ dfs_board :: proc(depth: int, pos: glm.ivec2) {
     dfs_board(depth - 1, pos - {0, 1})
     dfs_board(depth - 1, pos + {1, 0})
     dfs_board(depth - 1, pos - {1, 0})
-
-
-    // for x := i32(-1); x <= 1; x += 1 {
-    //     for y := i32(-1); y <= 1; y += 1 {
-    //         if x == 0 && y == 0 {
-    //             continue
-    //         }
-    //         // fmt.println("neighbors", x, y)
-    //         dfs_board(depth - 1, pos + {x, y})
-    //     }
-    // }
 }
 
 in_bounds :: #force_inline proc(pos: glm.ivec2) -> bool {

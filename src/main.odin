@@ -92,15 +92,6 @@ main :: proc() {
 	}
 	defer render.assets_deinit()
 
-    cube_obj, cube_obj_err := render.load_obj("assets/cube.obj")
-    if cube_obj_err != nil {
-        fmt.eprintln("Failed to load cube.obj:", cube_obj_err)
-        return
-    }
-	cube_mesh := render.mesh_init(cube_obj)
-	defer render.mesh_deinit(&cube_mesh)
-
-	
 	shape_renderer := render.shapes_init()
 
 	render.quad_renderer_init(render.assets.shaders.quad)
@@ -192,6 +183,8 @@ main :: proc() {
 			gl.BindTextureUnit(tex.unit, tex.id)
 		}
 
+		cube_mesh := render.mesh(.Cube)
+
 		for tile, i in game.fight.level {
 			i := i32(i)
 
@@ -204,14 +197,14 @@ main :: proc() {
 				case .Void:
 					continue
 				case .Ground:
-					render.mesh_draw(&cube_mesh, render.Instance{
+					render.mesh_draw(cube_mesh, render.Instance{
 						transform = model,
 						texture = {2, 10},
 						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
 						entity_id = i,
 					})
 				case .Wall:
-					render.mesh_draw(&cube_mesh, render.Instance{
+					render.mesh_draw(cube_mesh, render.Instance{
 						transform = model,
 						texture = {0, 1},
 						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
@@ -240,7 +233,7 @@ main :: proc() {
 				// Draw editor outline.
 				if gui.is_selected(.Light, i) {
 					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(&cube_mesh, render.Instance{
+					render.mesh_draw(cube_mesh, render.Instance{
 						transform = m,
 						texture = {100, 1},
 						entity_id = -1,
@@ -249,7 +242,7 @@ main :: proc() {
 			}
 		}
 
-		render.mesh_flush(&cube_mesh)
+		render.mesh_flush(cube_mesh)
 
 		{
 			ninja := render.mesh(.Ninja)
