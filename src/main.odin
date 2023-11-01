@@ -13,7 +13,6 @@ import "debug"
 import "gui"
 import "game"
 import "storage"
-import "physics"
 
 SCREEN :: glm.vec2{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
