@@ -142,7 +142,7 @@ main :: proc() {
 		if glfw.GetKey(window, glfw.KEY_E) == glfw.PRESS {
 			input += {.FlyDown}
 		}
-	
+
 		view := game.update(dt, input)
 
         glfw.PollEvents()
@@ -152,10 +152,10 @@ main :: proc() {
 			hovered_id = -1
 		}
 
-		if hovered_id >= 0 && hovered_id in game.path_finding.visited {
+		if hovered_id in game.path_finding.legal_moves {
 			// Hovering a tile within active player's reach.
 
-			player_coord := game.fight.players[game.fight.active_player].coord 
+			player_coord := game.fight.players[game.fight.active_player].coord
 			game.shortest_path(player_coord, hovered_id)
 
 
@@ -169,20 +169,20 @@ main :: proc() {
 		// if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
 		// 	already_there := hovered_id == game.fight.players[game.fight.active_player].coord
 		// 	if hovered_id >= 0 && !already_there && hovered_id in game.path_finding.visited {
-		// 		start := game.fight.players[game.fight.active_player].coord 
+		// 		start := game.fight.players[game.fight.active_player].coord
 		// 		end := hovered_id
 		// 		game.shortest_path(start, end)
 		// 		fmt.println("shortest", start, end,  game.path_finding.came_from)
 		// 		// game.move_player(game.fight.active_player, hovered_id)
 		// 		// game.start_turn(game.fight.active_player)
-		// 	} 
+		// 	}
 		// }
 
 		// Draw scene to framebuffer
 		gl.BindFramebuffer(gl.FRAMEBUFFER, mouse_pick.fbo)
 
         gl.ClearColor(0.1, 0.1, 0.1, 1)
-		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT) 
+		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 		gl.Enable(gl.DEPTH_TEST)
 
 		// Draw cube
@@ -227,7 +227,7 @@ main :: proc() {
 						texture = {0, 1},
 						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
 						entity_id = i,
-					}) 
+					})
 			}
 		}
 
@@ -255,7 +255,7 @@ main :: proc() {
 						transform = m,
 						texture = {100, 1},
 						entity_id = -1,
-					}) 
+					})
 				}
 			}
 		}
@@ -295,7 +295,7 @@ main :: proc() {
 			}
 
 			// Draw pathfinding results
-			for id in game.path_finding.visited {
+			for id in game.path_finding.legal_moves {
 				pos := game.fight_tile_pos(id)
 				pos.y += 1.02
 
@@ -318,7 +318,7 @@ main :: proc() {
 			color := [4]f32{(glm.sin(now) + 1) / 2, (glm.cos(now) + 1) / 2, 1, 1}
 			render.setFloat4(line_shader.id, "color", color)
 
-			// Cone
+			// Draw cone at origin to help orientate in cyberspace.
 			start := glm.vec3{0, 3, 0}
 			n := 3
 			step := 2 * glm.PI / f32(n)
@@ -328,14 +328,14 @@ main :: proc() {
 			}
 
 
-			if len(game.path_finding.came_from) > 0 && hovered_id >= 0 && hovered_id in game.path_finding.came_from {
+			if len(game.path_finding.came_from) > 0 && hovered_id in game.path_finding.legal_moves {
 				// Draw path from active player to hovered tile.
 				current := hovered_id
 				start := game.fight.players[game.fight.active_player].coord
 				for current != start {
 					next, ok := game.path_finding.came_from[current]
 					if !ok {
-						fmt.eprintln("path-finding bug, current not in path_finding.came_from:", current)
+						fmt.eprintln("😭 path-finding bug, current not in path_finding.came_from:", current)
 						break
 					}
 
@@ -353,7 +353,7 @@ main :: proc() {
 		{
 			// Draw to screen
 			gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-			gl.ClearColor(1.0, 1.0, 1.0, 1.0); 
+			gl.ClearColor(1.0, 1.0, 1.0, 1.0);
 			gl.Clear(gl.COLOR_BUFFER_BIT);
 			gl.Disable(gl.DEPTH_TEST)
 			render.draw_quad(mouse_pick.tex)

@@ -4,6 +4,9 @@ import glm "core:math/linalg/glsl"
 import "core:fmt"
 import "core:container/queue"
 
+
+fight := init_fight()
+
 Fight :: struct {
     active_player: u8,
     players: [6]Player,
@@ -77,14 +80,15 @@ init_fight :: proc() -> (f: Fight) {
         },
     }
 
-    reserve(&path_finding.visited, len(f.level))
+    reserve(&path_finding.legal_moves, len(f.level))
+    reserve(&path_finding.came_from, len(f.level))
 
     return
 }
 
 deinit_fight :: proc() {
-   delete(path_finding.came_from) 
-   delete(path_finding.visited) 
+   delete(path_finding.came_from)
+   delete(path_finding.legal_moves)
 }
 
 fight_tile_pos :: proc(id: i32) -> glm.vec3 {
@@ -96,10 +100,10 @@ fight_tile_pos :: proc(id: i32) -> glm.vec3 {
 
 start_turn :: proc(player: u8) {
     fight.active_player = player
-    legal_moves(player)
+    calc_legal_moves(player)
 }
 
-legal_moves :: proc(player_id: u8) {
+calc_legal_moves :: proc(player_id: u8) {
     using fight
 
     coord := players[player_id].coord
@@ -109,10 +113,10 @@ legal_moves :: proc(player_id: u8) {
 
     x, y := coord % level_width, coord / level_width
 
-    clear(&path_finding.visited)
+    clear(&path_finding.legal_moves)
     dfs_board(moves, {x, y})
     // Remove player's current position from available moves.
-    delete_key(&path_finding.visited, coord)
+    delete_key(&path_finding.legal_moves, coord)
 }
 
 Direction :: enum u8 {
@@ -123,7 +127,9 @@ Direction :: enum u8 {
 }
 
 PathFinding :: struct {
-    visited: map[i32]bool,
+    legal_moves: map[i32]bool,
+    // Following came_from from any tile id will give the shortest path
+    // to the starting node.
     came_from: map[i32]i32,
 }
 
@@ -140,14 +146,16 @@ dfs_board :: proc(depth: int, pos: glm.ivec2) {
     if fight.level[id].type == .Void {
         return
     }
-    visited[id] = true
+    legal_moves[id] = true
 
+    // Only orthogonal moves.
     dfs_board(depth - 1, pos + {0, 1})
     dfs_board(depth - 1, pos - {0, 1})
     dfs_board(depth - 1, pos + {1, 0})
     dfs_board(depth - 1, pos - {1, 0})
 }
 
+// Naive BFS for now. Should explore Djiksta's or A* if needed.
 shortest_path :: proc(a, b: i32) {
     clear(&path_finding.came_from)
     assert(a != b)
@@ -185,6 +193,7 @@ shortest_path :: proc(a, b: i32) {
             }
         }
 
+        // Only orthogonal moves.
         push(&to_visit, id, node + {0, 1})
         push(&to_visit, id, node - {0, 1})
         push(&to_visit, id, node + {1, 0})
@@ -200,5 +209,3 @@ in_bounds :: #force_inline proc(pos: glm.ivec2) -> bool {
 move_player :: proc(player_id: u8, coord: i32) {
     fight.players[player_id].coord = coord
 }
-
-fight := init_fight()
