@@ -110,9 +110,9 @@ void main() {
     result += ambient;
     vec4 base = texture(textures[vTexture.x], vTexCoord * vTexture.y);
     if (vColor != vec4(0, 0, 0, 0)) {
-        base = vColor;        
+        base *= vColor;        
     }
-    // color = vec4(result, 1.0) * base;
-    color = base;
+    color = vec4(result, 1.0) * base;
+    // color = base;
     entityId = vEntityId;
 }

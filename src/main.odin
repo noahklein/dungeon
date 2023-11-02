@@ -103,6 +103,7 @@ main :: proc() {
 	game.world_load("config.json")
 	game.init_camera(ASPECT)
 	game.start_turn(0)
+	defer game.deinit_fight()
 
 	projection := game.projection(game.cam)
 
@@ -150,14 +151,32 @@ main :: proc() {
 		if hovered_id < 0 || hovered_id > 99999 {
 			hovered_id = -1
 		}
-		// @Cleanup: move to centralized input handler.
-		if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
-			already_there := hovered_id == game.fight.players[game.fight.active_player].coord
-			if hovered_id >= 0 && !already_there && hovered_id in game.path_finding.visited {
+
+		if hovered_id >= 0 && hovered_id in game.path_finding.visited {
+			// Hovering a tile within active player's reach.
+
+			player_coord := game.fight.players[game.fight.active_player].coord 
+			game.shortest_path(player_coord, hovered_id)
+
+
+			if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
 				game.move_player(game.fight.active_player, hovered_id)
 				game.start_turn(game.fight.active_player)
-			} 
+			}
 		}
+
+		// @Cleanup: move to centralized input handler.
+		// if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
+		// 	already_there := hovered_id == game.fight.players[game.fight.active_player].coord
+		// 	if hovered_id >= 0 && !already_there && hovered_id in game.path_finding.visited {
+		// 		start := game.fight.players[game.fight.active_player].coord 
+		// 		end := hovered_id
+		// 		game.shortest_path(start, end)
+		// 		fmt.println("shortest", start, end,  game.path_finding.came_from)
+		// 		// game.move_player(game.fight.active_player, hovered_id)
+		// 		// game.start_turn(game.fight.active_player)
+		// 	} 
+		// }
 
 		// Draw scene to framebuffer
 		gl.BindFramebuffer(gl.FRAMEBUFFER, mouse_pick.fbo)
@@ -306,6 +325,28 @@ main :: proc() {
 			for i in 0..=n {
 				end := glm.vec3{glm.sin(f32(i) * step), -1, glm.cos(f32(i) * step)}
 				render.draw_line(&shape_renderer, start, end)
+			}
+
+
+			if len(game.path_finding.came_from) > 0 && hovered_id >= 0 && hovered_id in game.path_finding.came_from {
+				// Draw path from active player to hovered tile.
+				current := hovered_id
+				start := game.fight.players[game.fight.active_player].coord
+				for current != start {
+					next, ok := game.path_finding.came_from[current]
+					if !ok {
+						fmt.eprintln("path-finding bug, current not in path_finding.came_from:", current)
+						break
+					}
+
+					a := game.fight_tile_pos(current)
+					a.y += 2
+					b := game.fight_tile_pos(next)
+					b.y += 2
+
+					render.draw_line(&shape_renderer, a, b)
+					current = next
+				}
 			}
 		}
 
