@@ -6,9 +6,9 @@ import glm "core:math/linalg/glsl"
 import "core:reflect"
 
 import "vendor:glfw"
-import "../libs/imgui"
-import imgui_glfw "../libs/imgui/imgui_impl_glfw"
-import imgui_gl "../libs/imgui/imgui_impl_opengl3"
+import "../../libs/imgui"
+import imgui_glfw "../../libs/imgui/imgui_impl_glfw"
+import imgui_gl "../../libs/imgui/imgui_impl_opengl3"
 
 import "../game"
 import "../render"
