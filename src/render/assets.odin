@@ -19,10 +19,10 @@ TEXTURE_PATHS := []cstring{
     // "assets/katana/katana_norm.png",
 }
 
-MESH_PATHS := []cstring{
-    "assets/cube.obj",
-    "assets/quad.obj",
-    "assets/ninja.obj",
+MESH_PATHS := [MeshId]cstring{
+    .Cube = "assets/cube.obj",
+    .Quad = "assets/quad.obj",
+    .Ninja = "assets/ninja.obj",
     // "assets/katana/katana.obj",
 }
 
@@ -40,7 +40,7 @@ Assets :: struct {
     textures: [dynamic]Texture,
     // For shaders Just a range of numbers [0..<len(textures)]
     texture_units: [dynamic]i32, 
-    meshes: [dynamic]Mesh,
+    meshes: [MeshId]Mesh,
 
     shaders: ShaderMap,
 }
@@ -105,7 +105,7 @@ assets_init :: proc() -> AssetLoadError {
         }
 
         m := mesh_init(obj)
-        append(&assets.meshes, m)
+        assets.meshes[i] = m
     }
 
     shaders : [len(SHADER_PATHS)]Shader
@@ -132,5 +132,4 @@ assets_deinit :: proc() {
     for &mesh in assets.meshes {
         mesh_deinit(&mesh)
     }
-    delete(assets.meshes)
 }

@@ -60,8 +60,9 @@ init_fight :: proc() -> (f: Fight) {
         1, 1, 1, 1, 2, 2,
         1, 1, 1, 1, 2, 2,
     }
-
     f.level_width = 6
+    assert(len(test_level) % f.level_width == 0, "level must be rectangular")
+
     for x in test_level {
         // append(&f.level, TileType(x))
         append(&f.level, Tile{ TileType(x) })
