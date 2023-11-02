@@ -271,7 +271,7 @@ main :: proc() {
 				render.mesh_draw(ninja, render.Instance{
 					transform = game.transform_model({pos = pos, scale = scale}),
 					texture = {2, 1},
-					color = {0.3, 0.3, 0.3, 1},
+					color = {0.3, 0.3, 1, 1},
 					entity_id = i32(player.coord),
 				})
 			}
