@@ -18,7 +18,7 @@ SCREEN :: glm.vec2{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
 TITLE :: "Dungeon"
 
-cursor_hidden := true
+cursor_hidden : bool
 mouse_coords : glm.vec2
 
 main :: proc() {
@@ -75,6 +75,9 @@ main :: proc() {
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
     gl.Enable(gl.DEPTH_TEST)
     gl.DepthFunc(gl.LESS)
+
+	gl.Enable(gl.LINE_SMOOTH)
+	gl.LineWidth(3)
 
 	// glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
 	glfw.SetKeyCallback(window, key_callback)
@@ -153,30 +156,11 @@ main :: proc() {
 		}
 
 		if hovered_id in game.path_finding.legal_moves {
-			// Hovering a tile within active player's reach.
-
-			player_coord := game.fight.players[game.fight.active_player].coord
-			game.shortest_path(player_coord, hovered_id)
-
-
 			if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
 				game.move_player(game.fight.active_player, hovered_id)
 				game.start_turn(game.fight.active_player)
 			}
 		}
-
-		// @Cleanup: move to centralized input handler.
-		// if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
-		// 	already_there := hovered_id == game.fight.players[game.fight.active_player].coord
-		// 	if hovered_id >= 0 && !already_there && hovered_id in game.path_finding.visited {
-		// 		start := game.fight.players[game.fight.active_player].coord
-		// 		end := hovered_id
-		// 		game.shortest_path(start, end)
-		// 		fmt.println("shortest", start, end,  game.path_finding.came_from)
-		// 		// game.move_player(game.fight.active_player, hovered_id)
-		// 		// game.start_turn(game.fight.active_player)
-		// 	}
-		// }
 
 		// Draw scene to framebuffer
 		gl.BindFramebuffer(gl.FRAMEBUFFER, mouse_pick.fbo)

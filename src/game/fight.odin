@@ -4,7 +4,6 @@ import glm "core:math/linalg/glsl"
 import "core:fmt"
 import "core:container/queue"
 
-
 fight := init_fight()
 
 Fight :: struct {
@@ -36,7 +35,7 @@ PlayerClass :: enum u8 {
 player_data := [PlayerClass]PlayerData{
     PlayerClass.Boxer = { moves = 3 },
     PlayerClass.Ranger = { moves = 4 },
-    PlayerClass.Ninja = { moves = 3 },
+    PlayerClass.Ninja = { moves = 4 },
 }
 
 Tile :: struct {
@@ -118,6 +117,11 @@ calc_legal_moves :: proc(player_id: u8) {
     dfs_board(moves, {x, y})
     // Remove player's current position from available moves.
     delete_key(&path_finding.legal_moves, coord)
+
+    // This is probably stupid. We do a DFS at depth = moves, to get legal moves. Then a
+    // BFS to all legal move tiles to get the path. There's probably a simple way to do
+    // both in one pass.
+    shortest_path(coord)
 }
 
 Direction :: enum u8 {
@@ -157,12 +161,10 @@ dfs_board :: proc(depth: int, pos: glm.ivec2) {
 }
 
 // Naive BFS for now. Should explore Djiksta's or A* if needed.
-shortest_path :: proc(a, b: i32) {
+shortest_path :: proc(coord: i32) {
     clear(&path_finding.came_from)
-    assert(a != b)
 
-    start := glm.ivec2{a % fight.level_width, a / fight.level_width}
-    end := glm.ivec2{b % fight.level_width, b / fight.level_width}
+    start := glm.ivec2{coord % fight.level_width, coord / fight.level_width}
 
     to_visit : queue.Queue(glm.ivec2)
     if err := queue.init(&to_visit, allocator = context.temp_allocator); err != nil {
@@ -171,28 +173,26 @@ shortest_path :: proc(a, b: i32) {
     }
     queue.push(&to_visit, start)
 
+    push :: proc(q: ^queue.Queue($T), from_id: i32, elem: glm.ivec2) {
+        if !in_bounds(elem) {
+            return
+        }
+
+        id := elem.x + elem.y * fight.level_width
+        if id not_in path_finding.legal_moves {
+            return
+        }
+        if id in path_finding.came_from {
+            return
+        }
+
+        path_finding.came_from[id] = from_id
+        queue.push_back(q, elem)
+    }
+
     for queue.len(to_visit) > 0 {
         node := queue.pop_front(&to_visit)
-        if node == end {
-            return // We made it!
-        }
-
         id := node.x + node.y * fight.level_width
-        if fight.level[id].type == .Void {
-            continue
-        }
-
-        push :: proc(q: ^queue.Queue($T), from_id: i32, elem: glm.ivec2) {
-            if !in_bounds(elem) {
-                return
-            }
-            queue.push_back(q, elem)
-
-            id := elem.x + elem.y * fight.level_width
-            if id not_in path_finding.came_from {
-                path_finding.came_from[id] = from_id
-            }
-        }
 
         // Only orthogonal moves.
         push(&to_visit, id, node + {0, 1})

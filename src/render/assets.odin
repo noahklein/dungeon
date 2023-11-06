@@ -39,7 +39,7 @@ mesh :: #force_inline proc(id: MeshId) -> ^Mesh {
 Assets :: struct {
     textures: [dynamic]Texture,
     // For shaders Just a range of numbers [0..<len(textures)]
-    texture_units: [dynamic]i32, 
+    texture_units: [dynamic]i32,
     meshes: [MeshId]Mesh,
 
     shaders: ShaderMap,
@@ -86,7 +86,6 @@ assets_init :: proc() -> AssetLoadError {
             if row == 0 || row == SIZE - 1 || col == 0 || col == SIZE - 1 {
                 border_tex_data[i] = COLOR
             }
-            
         }
 
         gl.TextureSubImage2D(border_tex.id, 0, 0, 0, SIZE, SIZE, gl.RGBA, gl.UNSIGNED_INT_8_8_8_8, &border_tex_data[0])
