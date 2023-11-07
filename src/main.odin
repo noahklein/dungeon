@@ -18,6 +18,9 @@ SCREEN :: glm.vec2{1600, 1200}
 ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
 TITLE :: "Dungeon"
 
+RED :: [4]f32{1, 0.3, 0.3, 1}
+BLUE :: [4]f32{0.3, 0.3, 1, 1}
+
 cursor_hidden : bool
 mouse_coords : glm.vec2
 
@@ -157,7 +160,12 @@ main :: proc() {
 
 		if hovered_id in game.path_finding.legal_moves {
 			if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
-				game.move_player(game.fight.active_player, hovered_id)
+				if their_team := game.get_player(hovered_id).team; their_team == .Enemy {
+					game.move_player(game.fight.active_player, game.path_finding.came_from[hovered_id])
+				} else {
+					game.move_player(game.fight.active_player, hovered_id)
+				}
+
 				game.start_turn(game.fight.active_player)
 			}
 		}
@@ -202,14 +210,12 @@ main :: proc() {
 					render.mesh_draw(cube_mesh, render.Instance{
 						transform = model,
 						texture = {2, 10},
-						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
 						entity_id = i,
 					})
 				case .Wall:
 					render.mesh_draw(cube_mesh, render.Instance{
 						transform = model,
 						texture = {0, 1},
-						// color = i32(i) in game.path_finding.visited ? {1, 0, 0, 1} : {0, 0, 0, 0},
 						entity_id = i,
 					})
 			}
@@ -252,10 +258,11 @@ main :: proc() {
 			for player, i in game.fight.players {
 				pos := game.fight_tile_pos(player.coord)
 				pos.y += 1.4
+
 				render.mesh_draw(ninja, render.Instance{
 					transform = game.transform_model({pos = pos, scale = scale}),
 					texture = {2, 1},
-					color = {0.3, 0.3, 1, 1},
+					color = player.team == .Enemy ? RED : BLUE,
 					entity_id = i32(player.coord),
 				})
 			}
@@ -264,6 +271,7 @@ main :: proc() {
 		}
 
 		{
+			// Draw quads
 			quad := render.mesh(.Quad)
 			scale := glm.vec3{1, 1, 1}
 
@@ -283,9 +291,12 @@ main :: proc() {
 				pos := game.fight_tile_pos(id)
 				pos.y += 1.02
 
+				color := game.get_player(id).team == .Enemy ? RED : BLUE
+				color.a = 0.5 // Transparent
+
 				render.mesh_draw(quad, render.Instance{
 					transform = game.transform_model({pos = pos, scale = scale}),
-					color = {0, 0, 1, 0.5},
+					color = color,
 					entity_id = i32(id),
 				})
 			}
@@ -294,8 +305,8 @@ main :: proc() {
 		}
 
 		{
-			line_shader := render.assets.shaders.line
 			// Draw lines
+			line_shader := render.assets.shaders.line
 			gl.UseProgram(line_shader.id)
 			render.setMat4(line_shader.id, "projection", &projection[0, 0])
 			render.setMat4(line_shader.id, "view", &view[0, 0])
