@@ -35,7 +35,7 @@ PlayerClass :: enum u8 {
 player_data := [PlayerClass]PlayerData{
     PlayerClass.Boxer = { moves = 3 },
     PlayerClass.Ranger = { moves = 4 },
-    PlayerClass.Ninja = { moves = 3 },
+    PlayerClass.Ninja = { moves = 5 },
 }
 
 Tile :: struct {
@@ -78,7 +78,7 @@ init_fight :: proc() -> (f: Fight) {
         },
         1 = {
             class = .Ranger,
-            coord = 30,
+            coord = 32,
             health = 10,
             team = .Enemy,
         },
@@ -132,22 +132,20 @@ start_turn :: proc(player_id: i32) {
 calc_legal_moves :: proc(player_id: i32) {
     using fight
 
-    coord := players[player_id].coord
+    player := players[player_id]
+    moves := player_data[player.class].moves
 
-    class := players[player_id].class
-    moves := player_data[class].moves
-
-    x, y := coord % level_width, coord / level_width
+    x, y := player.coord % level_width, player.coord / level_width
 
     clear(&path_finding.legal_moves)
-    dfs_board(moves, {x, y})
+    dfs_board(moves, {x, y}, player.team)
     // Remove player's current position from available moves.
-    delete_key(&path_finding.legal_moves, coord)
+    delete_key(&path_finding.legal_moves, player.coord)
 
     // This is probably stupid. We do a DFS at depth = moves, to get legal moves. Then a
     // BFS to all legal move tiles to get the paths. There's probably a simple way to do
     // both in one pass.
-    shortest_path(coord)
+    shortest_path(player.coord)
 }
 
 PathFinding :: struct {
@@ -159,32 +157,38 @@ PathFinding :: struct {
 
 path_finding : PathFinding
 
-dfs_board :: proc(depth: int, pos: glm.ivec2) {
+dfs_board :: proc(depth: int, pos: glm.ivec2, my_team: Team) {
     if !in_bounds(pos) {
         return
     }
 
     id := pos.x + pos.y * fight.level_width
 
+    if fight.level[id].type == .Void {
+        return
+    }
+
     if depth == -1 {
-        // Check for players in melee range.
-        if team := get_player(id).team; team != .None {
+        // I'm out of moves, but check for enemy players in melee range.
+        if their_team := get_player(id).team; their_team != .None && their_team != my_team {
             path_finding.legal_moves[id] = true
         }
 
         return
     }
 
-    if fight.level[id].type == .Void {
+    path_finding.legal_moves[id] = true // I can make it here.
+
+    if their_team := get_player(id).team; their_team != .None && their_team != my_team {
+        // We are enemies, I shall not pass.
         return
     }
-    path_finding.legal_moves[id] = true
 
     // Only orthogonal moves.
-    dfs_board(depth - 1, pos + {0, 1})
-    dfs_board(depth - 1, pos - {0, 1})
-    dfs_board(depth - 1, pos + {1, 0})
-    dfs_board(depth - 1, pos - {1, 0})
+    dfs_board(depth - 1, pos + {0, 1}, my_team)
+    dfs_board(depth - 1, pos - {0, 1}, my_team)
+    dfs_board(depth - 1, pos + {1, 0}, my_team)
+    dfs_board(depth - 1, pos - {1, 0}, my_team)
 }
 
 // Naive BFS for now. Should explore Djiksta's or A* if needed.
