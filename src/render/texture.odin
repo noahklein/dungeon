@@ -6,7 +6,7 @@ import glm "core:math/linalg/glsl"
 import "vendor:stb/image"
 import gl "vendor:OpenGL"
 
-Texture :: struct { 
+Texture :: struct {
 	id, unit: u32,
 	format: u32,
 }
@@ -129,7 +129,7 @@ mouse_picking_init :: proc(screen: glm.vec2) -> (mp: MousePicking, ok: bool) {
 
 	// Entity IDs for mouse picking
 	entity_id_tex := texture_init(0, TextureOptions{
-		width = size.x, height = size.y, 
+		width = size.x, height = size.y,
 		format = .RED_INT,
 		min_filter = .LINEAR, mag_filter = .LINEAR,
 		wrap_s = .REPEAT, wrap_t = .REPEAT,
@@ -151,17 +151,9 @@ mouse_picking_init :: proc(screen: glm.vec2) -> (mp: MousePicking, ok: bool) {
 	return mp, true
 }
 
-mouse_picking_begin :: proc(mp: MousePicking) {
-	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, mp.fbo)
-}
-
-mouse_picking_end :: proc() {
-	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
-}
-
 mouse_picking_read :: proc(mp: MousePicking, coord: glm.vec2) -> int {
 	x, y := i32(coord.x), i32(coord.y)
-	
+
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, mp.fbo)
 	defer gl.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
 

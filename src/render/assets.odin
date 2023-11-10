@@ -15,15 +15,12 @@ TEXTURE_PATHS := []cstring{
     "assets/brick_norm.jpg",
     "assets/ground.png",
     "assets/ground_norm.png",
-    // "assets/katana/katana.png",
-    // "assets/katana/katana_norm.png",
 }
 
 MESH_PATHS := [MeshId]cstring{
     .Cube = "assets/cube.obj",
     .Quad = "assets/quad.obj",
     .Ninja = "assets/ninja.obj",
-    // "assets/katana/katana.obj",
 }
 
 MeshId :: enum u8 {
@@ -93,8 +90,6 @@ assets_init :: proc() -> AssetLoadError {
         append(&assets.textures, border_tex)
         append(&assets.texture_units, i32(id))
     }
-
-
 
     for path, i in MESH_PATHS {
         obj, obj_err := load_obj(string(path))
