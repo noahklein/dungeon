@@ -7,16 +7,19 @@ import "core:container/queue"
 fight := init_fight()
 
 Fight :: struct {
-    active_player: i32,
+    active_player: PlayerId,
     players: [6]Player,
     level: [dynamic]Tile,
     level_width: i32,
 }
 
+PlayerId :: distinct i32
+TileId :: distinct i32
+
 Player :: struct {
     class: PlayerClass,
-    coord: i32,
-    health: u32,
+    coord: TileId,
+    health: i32,
 
     team: Team,
     has_ball: bool,
@@ -40,7 +43,7 @@ player_data := [PlayerClass]PlayerData{
 
 Tile :: struct {
     type: TileType,
-    player_id: i32,
+    player_id: PlayerId,
 }
 
 TileType :: enum u8 {
@@ -93,10 +96,10 @@ init_fight :: proc() -> (f: Fight) {
     }
 
     for tile_type, tile_id in test_level {
-        player_id := i32(-1)
+        player_id := PlayerId(-1)
         for player, p_id in f.players {
-            if i32(tile_id) == player.coord {
-                player_id = i32(p_id)
+            if TileId(tile_id) == player.coord {
+                player_id = PlayerId(p_id)
             }
         }
 
@@ -117,28 +120,28 @@ deinit_fight :: proc() {
    delete(path_finding.legal_moves)
 }
 
-fight_tile_pos :: proc(id: i32) -> glm.vec3 {
-    x, z := id % fight.level_width, id / fight.level_width
+fight_tile_pos :: proc(id: TileId) -> glm.vec3 {
+    coord := id_to_coord(id)
 
     y := fight.level[id].type == .Wall ? 1 : 0
-    return 2 * glm.vec3{f32(x), f32(y), f32(z)}
+    return 2 * glm.vec3{f32(coord.x), f32(y), f32(coord.y)}
 }
 
-start_turn :: proc(player_id: i32) {
+start_turn :: proc(player_id: PlayerId) {
     fight.active_player = player_id
     calc_legal_moves(player_id)
 }
 
-calc_legal_moves :: proc(player_id: i32) {
+calc_legal_moves :: proc(player_id: PlayerId) {
     using fight
 
     player := players[player_id]
     moves := player_data[player.class].moves
 
-    x, y := player.coord % level_width, player.coord / level_width
+    pos := id_to_coord(player.coord)
 
     clear(&path_finding.legal_moves)
-    dfs_board(moves, {x, y}, player.team)
+    dfs_board(moves, pos, player.team)
     // Remove player's current position from available moves.
     delete_key(&path_finding.legal_moves, player.coord)
 
@@ -149,10 +152,10 @@ calc_legal_moves :: proc(player_id: i32) {
 }
 
 PathFinding :: struct {
-    legal_moves: map[i32]bool,
+    legal_moves: map[TileId]bool,
     // Following came_from recursively from any tile id will give the shortest path back
     // to the starting node.
-    came_from: map[i32]i32,
+    came_from: map[TileId]TileId,
 }
 
 path_finding : PathFinding
@@ -162,7 +165,7 @@ dfs_board :: proc(depth: int, pos: glm.ivec2, my_team: Team) {
         return
     }
 
-    id := pos.x + pos.y * fight.level_width
+    id := TileId(pos.x + pos.y * fight.level_width)
 
     if fight.level[id].type == .Void {
         return
@@ -192,13 +195,13 @@ dfs_board :: proc(depth: int, pos: glm.ivec2, my_team: Team) {
 }
 
 // Naive BFS for now. Should explore Djiksta's or A* if needed.
-shortest_path :: proc(coord: i32) {
+shortest_path :: proc(tile_id: TileId) {
     clear(&path_finding.came_from)
 
-    my_team := get_player(coord).team
+    my_team := get_player(tile_id).team
     assert(my_team != .None)
 
-    start := glm.ivec2{coord % fight.level_width, coord / fight.level_width}
+    start := id_to_coord(tile_id)
 
     to_visit : queue.Queue(glm.ivec2)
     if err := queue.init(&to_visit, allocator = context.temp_allocator); err != nil {
@@ -207,12 +210,12 @@ shortest_path :: proc(coord: i32) {
     }
     queue.push(&to_visit, start)
 
-    push :: proc(q: ^queue.Queue($T), from_id: i32, elem: glm.ivec2, my_team: Team) {
+    push :: proc(q: ^queue.Queue($T), from_id: TileId, elem: glm.ivec2, my_team: Team) {
         if !in_bounds(elem) {
             return
         }
 
-        id := elem.x + elem.y * fight.level_width
+        id := coord_to_id(elem)
         if id not_in path_finding.legal_moves {
             return
         }
@@ -231,7 +234,7 @@ shortest_path :: proc(coord: i32) {
 
     for queue.len(to_visit) > 0 {
         node := queue.pop_front(&to_visit)
-        id := node.x + node.y * fight.level_width
+        id := coord_to_id(node)
 
         // Only orthogonal moves.
         push(&to_visit, id, node + {0, 1}, my_team)
@@ -246,7 +249,18 @@ in_bounds :: #force_inline proc(pos: glm.ivec2) -> bool {
     return 0 <= pos.x && pos.x < w && 0 <= pos.y && pos.y < h
 }
 
-move_player :: proc(player_id: i32, coord: i32) {
+id_to_coord :: #force_inline proc(tile_id: TileId) -> glm.ivec2 {
+    return glm.ivec2{
+        i32(tile_id) % fight.level_width,
+        i32(tile_id) / fight.level_width,
+    }
+}
+
+coord_to_id :: #force_inline proc(coord: glm.ivec2) -> TileId {
+    return TileId(coord.x + coord.y * fight.level_width)
+}
+
+move_player :: proc(player_id: PlayerId, coord: TileId) {
     old_coord := fight.players[player_id].coord
     fight.level[old_coord].player_id = -1
 
@@ -254,7 +268,33 @@ move_player :: proc(player_id: i32, coord: i32) {
     fight.players[player_id].coord = coord
 }
 
-get_player :: proc(tile_id: i32) -> Player {
+
+attack :: proc(player_id: PlayerId, target_tile_id: TileId) {
+    // TODO: take an attack type enum
+    target_tile := fight.level[target_tile_id]
+    if target_tile.player_id == -1 {
+        fmt.eprintln("Bug: attacking an empty tile", target_tile_id)
+        return
+    }
+
+    target_player := &fight.players[target_tile.player_id]
+    target_player.health -= 1
+    fmt.println("health remaining after attack", target_player.health)
+
+    // Shove target player back.
+    my_coord := id_to_coord(fight.players[player_id].coord)
+    target_coord := id_to_coord(target_tile_id)
+    shove_direction := target_coord - my_coord
+
+    shove_coord := shove_direction + target_coord
+    if !in_bounds(shove_coord) {
+        fmt.println("out of bounds")
+        return
+    }
+    move_player(target_tile.player_id, coord_to_id(shove_coord))
+}
+
+get_player :: proc(tile_id: TileId) -> Player {
     player_id := fight.level[tile_id].player_id
     if player_id == -1 {
         return Player{}

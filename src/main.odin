@@ -153,8 +153,8 @@ main :: proc() {
 
         glfw.PollEvents()
 
-		hovered_id := i32(render.mouse_picking_read(mouse_pick, mouse_coords))
-		if hovered_id < 0 || hovered_id > 99999 {
+		hovered_id := game.TileId(render.mouse_picking_read(mouse_pick, mouse_coords))
+		if hovered_id < 0 || hovered_id > 99999 { // @Hack: should clamp to valid IDs.
 			hovered_id = -1
 		}
 
@@ -162,6 +162,8 @@ main :: proc() {
 			if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
 				if their_team := game.get_player(hovered_id).team; their_team == .Enemy {
 					game.move_player(game.fight.active_player, game.path_finding.came_from[hovered_id])
+					// He attac
+					game.attack(game.fight.active_player, hovered_id)
 				} else {
 					game.move_player(game.fight.active_player, hovered_id)
 				}
@@ -198,7 +200,7 @@ main :: proc() {
 		for tile, i in game.fight.level {
 			i := i32(i)
 
-			pos := game.fight_tile_pos(i)
+			pos := game.fight_tile_pos(game.TileId(i))
 			scale := glm.vec3(1)
 
 			model := game.transform_model({ pos = pos, scale = scale})
