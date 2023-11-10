@@ -6,6 +6,8 @@ import "core:fmt"
 import "core:os"
 import "core:io"
 
+import "../render"
+
 import "vendor:glfw"
 
 TransformId :: distinct u16
@@ -18,7 +20,9 @@ Transform :: struct {
 // TODO: lots of wasted bytes, sparse arrays would be more memory efficient.
 Ent :: struct {
     using transform: Transform,
+    mesh_id: render.MeshId,
     texture: Texture,
+    animation: Animation,
     flags: bit_set[EntityFlags],
 }
 
@@ -35,11 +39,6 @@ Texture :: struct {
     unit, tiling: u32,
 }
 
-Chunk :: struct {
-    sword: Sword,
-}
-world := Chunk{}
-
 transform_model :: proc(e: Transform) -> glm.mat4 {
     quat := glm.quatFromEuler(e.rot)
     return glm.mat4Translate(e.scale / 2) * glm.mat4Translate(e.pos) * glm.mat4FromQuat(quat) * glm.mat4Scale(e.scale)
@@ -50,23 +49,12 @@ Level :: struct {
     lights: [dynamic]PointLight,
 }
 
-Sword :: struct {
-    using entity: Entity,
-    light: PointLight,
-}
-
-Entity :: struct {
-    pos: glm.vec3,
-    scale: glm.vec3,
-    rot: glm.vec3, // euler angles
-}
-
-Thing :: union {
-    ^Sword,
-}
-
 deinit_world :: proc() {
     delete(lights)
+
+    for ent in entities {
+        delete(ent.animation.keyframes)
+    }
     delete(entities)
 }
 

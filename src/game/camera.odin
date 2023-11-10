@@ -3,7 +3,7 @@ package game
 import glm "core:math/linalg/glsl"
 import "core:fmt"
 
-CAM_SPEED :: 1.0
+CAM_SPEED :: 10.0
 
 init_mouse : bool
 
@@ -28,7 +28,7 @@ init_camera :: proc(aspect: f32) {
         forward = {0, 0, 1}, right = {1, 0, 0},
         yaw = -90, pitch = 0,
         sensitivity = {0.01, 0.01},
-        speed = 10000,
+        speed = CAM_SPEED,
     }
 }
 

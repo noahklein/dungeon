@@ -106,10 +106,12 @@ main :: proc() {
 		return
 	}
 
-	game.world_load("config.json")
+	game.init_fight()
+	defer game.deinit_fight()
+
+	// game.world_load("config.json")
 	game.init_camera(ASPECT)
 	game.start_turn(0)
-	defer game.deinit_fight()
 
 	projection := game.projection(game.cam)
 
@@ -128,7 +130,7 @@ main :: proc() {
 			prev_second = now
         }
 
-		dt := (now - prev_frame_time) / 1000
+		dt := now - prev_frame_time
 		prev_frame_time = now
 
 		input : bit_set[game.Event]
@@ -150,6 +152,7 @@ main :: proc() {
 		}
 
 		view := game.update(dt, input)
+		game.update_animations(dt)
 
         glfw.PollEvents()
 
@@ -223,18 +226,27 @@ main :: proc() {
 			}
 		}
 
-		// for entity, i in game.entities {
-		// 	ent_id := i32(i + 1)
-		// 	model := game.transform_model(entity.transform)
-		// 	render.mesh_draw(&cube_mesh, model, entity.texture.unit, entity.texture.tiling, ent_id)
+		for entity, i in game.entities {
+			ent_id := i32(i + 1)
+			model := game.transform_model(entity.transform)
+			mesh := render.mesh(entity.mesh_id)
+			render.mesh_draw(mesh, render.Instance{
+				entity_id = ent_id,
+				texture = {entity.texture.unit, entity.texture.tiling},
+				transform = model,
+			})
 
-		// 	when ODIN_DEBUG {
-		// 		if gui.is_selected(.Entity, i) {
-		// 			m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-		// 			render.mesh_draw(&cube_mesh, m, 100, 1, ent_id)
-		// 		}
-		// 	}
-		// }
+			when ODIN_DEBUG {
+				if gui.is_selected(.Entity, i) {
+					m := model * glm.mat4Scale({1.1, 1.1, 1.1})
+					render.mesh_draw(mesh, render.Instance{
+						entity_id = ent_id,
+						texture = {100, 1}, // @Hack: shader checks for 100 to draw the editor outline.
+						transform = m,
+					})
+				}
+			}
+		}
 
 		// Draw light
 		for light, i in game.lights {
@@ -253,24 +265,6 @@ main :: proc() {
 		}
 
 		render.mesh_flush(cube_mesh)
-
-		{
-			ninja := render.mesh(.Ninja)
-			scale := glm.vec3(0.2)
-			for player, i in game.fight.players {
-				pos := game.fight_tile_pos(player.coord)
-				pos.y += 1.4
-
-				render.mesh_draw(ninja, render.Instance{
-					transform = game.transform_model({pos = pos, scale = scale}),
-					texture = {2, 1},
-					color = player.team == .Enemy ? RED : BLUE,
-					entity_id = i32(player.coord),
-				})
-			}
-
-			render.mesh_flush(ninja)
-		}
 
 		{
 			// Draw quads
@@ -306,6 +300,11 @@ main :: proc() {
 			render.mesh_flush(quad)
 		}
 
+		// Flush all mesh render buffers
+		for mesh_id in render.MeshId {
+			render.mesh_flush(render.mesh(mesh_id))
+		}
+
 		{
 			// Draw lines
 			line_shader := render.assets.shaders.line
@@ -328,7 +327,7 @@ main :: proc() {
 			if len(game.path_finding.came_from) > 0 && hovered_id in game.path_finding.legal_moves {
 				// Draw path from active player to hovered tile.
 				current := hovered_id
-				start := game.fight.players[game.fight.active_player].coord
+				start := game.fight.players[game.fight.active_player].tile_id
 				for current != start {
 					next, ok := game.path_finding.came_from[current]
 					if !ok {
@@ -402,4 +401,3 @@ key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods
 		game.world_save_to_file("config.json")
 	}
 }
-
