@@ -26,7 +26,6 @@ Player :: struct {
     health: i32,
 
     team: Team,
-    has_ball: bool,
 }
 
 PlayerData :: struct {
@@ -294,27 +293,34 @@ move_player :: proc(player_id: PlayerId, tile_id: TileId) {
 
     fight.level[tile_id].player_id = player_id
     fight.players[player_id].tile_id = tile_id
+}
 
-    // Begin movement animation, player visits every node on the path.
-    get_path_to :: proc(keyframes: ^[dynamic]Transform, scale: glm.vec3, tile_id: TileId)  {
-        if tile_id not_in path_finding.came_from {
-            return
-        }
-        came_from := path_finding.came_from[tile_id]
-        get_path_to(keyframes, scale, came_from)
+player_animate_path :: proc(player_id: PlayerId, final_destination: TileId) {
+    ent_id := fight.players[player_id].entity_id
+    ent := &entities[ent_id]
 
-        pos := fight_tile_pos(tile_id)
-        pos.y += 1.4
-        append(keyframes, Transform{
+    clear(&ent.animation.keyframes)
+    get_path_to(&ent.animation.keyframes, ent.scale, final_destination)
+    animation_play(ent_id)
+}
+
+// Recursively follow shortest path results to generate player movement animation keyframes.
+get_path_to :: proc(keyframes: ^[dynamic]Keyframe, scale: glm.vec3, tile_id: TileId)  {
+    if tile_id not_in path_finding.came_from {
+        return
+    }
+    came_from := path_finding.came_from[tile_id]
+    get_path_to(keyframes, scale, came_from)
+
+    pos := fight_tile_pos(tile_id)
+    pos.y += 1.4
+    append(keyframes, Keyframe{
+        transform = Transform{
             pos = pos,
             scale = scale,
-        })
-    }
-
-    ent := &entities[fight.players[player_id].entity_id]
-    clear(&ent.animation.keyframes)
-    get_path_to(&ent.animation.keyframes, ent.scale, tile_id)
-    play_animation(fight.players[player_id].entity_id, 0.5)
+        },
+        duration = 0.5,
+    })
 }
 
 // TODO: take an attack type enum
@@ -331,14 +337,46 @@ attack :: proc(player_id: PlayerId, target_tile_id: TileId) {
     // Shove target player back.
     my_coord := id_to_coord(fight.players[player_id].tile_id)
     target_coord := id_to_coord(target_tile_id)
-    shove_direction := target_coord - my_coord
+    shove_dir := target_coord - my_coord
 
-    shove_coord := shove_direction + target_coord
-    if !in_bounds(shove_coord) {
-        fmt.println("out of bounds")
-        return
+    shove_coord := shove_dir + target_coord
+    for in_bounds(shove_coord) {
+        shove_coord += shove_dir
     }
-    move_player(target_tile.player_id, coord_to_id(shove_coord))
+
+    if in_bounds(shove_coord) {
+        move_player(target_tile.player_id, coord_to_id(shove_coord))
+    } else {
+        target_player.health = 0
+        target_player.tile_id = -1
+        target_tile.player_id = -1
+    }
+
+    target_ent := entities[target_player.entity_id]
+
+    pos := glm.vec3{f32(2 * shove_coord.x), target_ent.pos.y, f32(2 * shove_coord.y)}
+    // @TODO: fight_tile_pos doesn't support out of bounds coordinates.
+    // pos := fight_tile_pos(coord_to_id(shove_coord))
+    // pos.y += 1.4
+    animation_play_one_frame(target_player.entity_id, Keyframe{
+        transform = Transform{
+            pos = pos,
+            rot = target_ent.rot,
+            scale = target_ent.scale,
+        },
+        curve = .Back_Out,
+        duration = 1,
+    })
+}
+
+shove :: proc(pos: glm.ivec2, dir: glm.ivec2) {
+    target := pos + dir
+    for target = pos + dir; in_bounds(target); target += dir {
+        tile_id := coord_to_id(target)
+        if fight.level[tile_id].type == .Void {
+            break
+        }
+    }
 }
 
 get_player :: proc(tile_id: TileId) -> Player {

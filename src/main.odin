@@ -152,7 +152,7 @@ main :: proc() {
 		}
 
 		view := game.update(dt, input)
-		game.update_animations(dt)
+		game.animation_update(dt)
 
         glfw.PollEvents()
 
@@ -163,15 +163,23 @@ main :: proc() {
 
 		if hovered_id in game.path_finding.legal_moves {
 			if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
+				player := game.fight.active_player
 				if their_team := game.get_player(hovered_id).team; their_team == .Enemy {
-					game.move_player(game.fight.active_player, game.path_finding.came_from[hovered_id])
+					next_to_enemy := game.path_finding.came_from[hovered_id]
+					my_tile := game.fight.players[player].tile_id
+					if next_to_enemy != my_tile {
+						game.move_player(player, next_to_enemy)
+						game.player_animate_path(player, next_to_enemy)
+					}
+
 					// He attac
-					game.attack(game.fight.active_player, hovered_id)
+					game.attack(player, hovered_id)
 				} else {
-					game.move_player(game.fight.active_player, hovered_id)
+					game.move_player(player, hovered_id)
+					game.player_animate_path(player, hovered_id)
 				}
 
-				game.start_turn(game.fight.active_player)
+				game.start_turn(player)
 			}
 		}
 
