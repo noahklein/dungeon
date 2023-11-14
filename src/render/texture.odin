@@ -110,36 +110,14 @@ mouse_picking_init :: proc(screen: glm.vec2) -> (mp: MousePicking, ok: bool) {
 	gl.BindFramebuffer(gl.FRAMEBUFFER, mp.fbo)
 	defer gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 
-	// Color texture
-	tex := texture_init(0, TextureOptions{
-		width = size.x, height = size.y,
-		format = .RGB,
-		min_filter = .LINEAR, mag_filter = .LINEAR,
-		wrap_s = .REPEAT, wrap_t = .REPEAT,
-	})
-	mp.tex = tex.id
-
-	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, mp.tex, 0)
 
 	// Depth and stencil render buffer
 	gl.GenRenderbuffers(1, &mp.rbo)
 	gl.BindRenderbuffer(gl.RENDERBUFFER, mp.rbo)
-	gl.RenderbufferStorage(gl.RENDERBUFFER, gl.DEPTH24_STENCIL8, size.x, size.y)
-	gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, mp.rbo)
 
-	// Entity IDs for mouse picking
-	entity_id_tex := texture_init(0, TextureOptions{
-		width = size.x, height = size.y,
-		format = .RED_INT,
-		min_filter = .LINEAR, mag_filter = .LINEAR,
-		wrap_s = .REPEAT, wrap_t = .REPEAT,
-	})
-	mp.entity_id_tex = entity_id_tex.id
-
-	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, mp.entity_id_tex, 0)
+	mouse_picking_init_textures(&mp, size)
 
 	gl.ReadBuffer(gl.NONE)
-	// gl.DrawBuffer(gl.COLOR_ATTACHMENT0)
 	attachments := [?]u32{gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1}
 	gl.DrawBuffers(2, &attachments[0])
 
@@ -164,4 +142,30 @@ mouse_picking_read :: proc(mp: MousePicking, coord: glm.vec2) -> int {
 	gl.ReadPixels(x, y, 1, 1, gl.RED_INTEGER, gl.INT, &id)
 
 	return id
+}
+
+mouse_picking_deinit :: proc(mp: ^MousePicking) {
+	gl.DeleteFramebuffers(1, &mp.fbo)
+	gl.DeleteRenderbuffers(1, &mp.rbo)
+}
+
+mouse_picking_init_textures :: proc(mp: ^MousePicking, size: glm.ivec2) {
+	gl.NamedRenderbufferStorage(mp.rbo, gl.DEPTH24_STENCIL8, size.x, size.y)
+	gl.NamedFramebufferRenderbuffer(mp.fbo, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, mp.rbo)
+
+	mp.tex = texture_init(0, TextureOptions{
+		width = size.x, height = size.y,
+		format = .RGB,
+		min_filter = .LINEAR, mag_filter = .LINEAR,
+		wrap_s = .REPEAT, wrap_t = .REPEAT,
+	}).id
+	gl.NamedFramebufferTexture(mp.fbo, gl.COLOR_ATTACHMENT0, mp.tex, 0)
+
+	mp.entity_id_tex = texture_init(0, TextureOptions{
+		width = size.x, height = size.y,
+		format = .RED_INT,
+		min_filter = .LINEAR, mag_filter = .LINEAR,
+		wrap_s = .REPEAT, wrap_t = .REPEAT,
+	}).id
+	gl.NamedFramebufferTexture(mp.fbo, gl.COLOR_ATTACHMENT1, mp.entity_id_tex, 0)
 }

@@ -14,8 +14,7 @@ import "gui"
 import "game"
 import "storage"
 
-SCREEN :: glm.vec2{1600, 1200}
-ASPECT :: f32(SCREEN.x) / f32(SCREEN.y)
+SCREEN := glm.vec2{1600, 1200}
 TITLE :: "Dungeon"
 
 RED :: [4]f32{1, 0.3, 0.3, 1}
@@ -23,6 +22,7 @@ BLUE :: [4]f32{0.3, 0.3, 1, 1}
 
 cursor_hidden : bool
 mouse_coords : glm.vec2
+mouse_pick : render.MousePicking // Mouse-picking framebuffer
 
 main :: proc() {
 	when ODIN_DEBUG {
@@ -86,6 +86,7 @@ main :: proc() {
 	glfw.SetKeyCallback(window, key_callback)
 	glfw.SetCursorPosCallback(window, mouse_callback)
 	glfw.SetMouseButtonCallback(window, mouse_button_callback)
+	glfw.SetFramebufferSizeCallback(window, resize_callback)
 
 	// Initialize ImGUI; MUST come after input handlers.
 	gui.init(window)
@@ -98,19 +99,16 @@ main :: proc() {
 	defer render.assets_deinit()
 
 	shape_renderer := render.shapes_init()
-
 	render.quad_renderer_init(render.assets.shaders.quad)
 
-	mouse_pick, mouse_pick_ok := render.mouse_picking_init(SCREEN)
-	if !mouse_pick_ok {
-		return
-	}
+	mouse_pick = render.mouse_picking_init(SCREEN) or_else
+		panic("Failed to init mouse_picking FBO")
 
 	game.init_fight()
 	defer game.deinit_fight()
 
 	// game.world_load("config.json")
-	game.init_camera(ASPECT)
+	game.init_camera(aspect = SCREEN.x / SCREEN.y)
 	game.start_turn(0)
 
 	projection := game.projection(game.cam)
@@ -125,7 +123,6 @@ main :: proc() {
 		frames += 1
 		now := f32(glfw.GetTime())
 		if now - prev_second >= 1 {
-			// fmt.println(1000/f32(frames), "ms/frame", frames, "FPS")
 			frames = 0
 			prev_second = now
         }
@@ -408,4 +405,13 @@ key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods
 	if key == glfw.KEY_S && mods == glfw.MOD_CONTROL && action == glfw.PRESS {
 		game.world_save_to_file("config.json")
 	}
+}
+
+resize_callback :: proc "c" (window: glfw.WindowHandle, w, h: i32) {
+	context = runtime.default_context()
+
+	SCREEN = {f32(w), f32(h)}
+	gl.Viewport(0, 0, w, h)
+	game.cam.aspect = SCREEN.x / SCREEN.y
+	render.mouse_picking_init_textures(&mouse_pick, {w, h})
 }
