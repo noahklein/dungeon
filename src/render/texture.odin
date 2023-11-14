@@ -144,11 +144,6 @@ mouse_picking_read :: proc(mp: MousePicking, coord: glm.vec2) -> int {
 	return id
 }
 
-mouse_picking_deinit :: proc(mp: ^MousePicking) {
-	gl.DeleteFramebuffers(1, &mp.fbo)
-	gl.DeleteRenderbuffers(1, &mp.rbo)
-}
-
 mouse_picking_init_textures :: proc(mp: ^MousePicking, size: glm.ivec2) {
 	gl.NamedRenderbufferStorage(mp.rbo, gl.DEPTH24_STENCIL8, size.x, size.y)
 	gl.NamedFramebufferRenderbuffer(mp.fbo, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, mp.rbo)
