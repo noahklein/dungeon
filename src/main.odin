@@ -413,5 +413,5 @@ resize_callback :: proc "c" (window: glfw.WindowHandle, w, h: i32) {
 	SCREEN = {f32(w), f32(h)}
 	gl.Viewport(0, 0, w, h)
 	game.cam.aspect = SCREEN.x / SCREEN.y
-	render.mouse_picking_init_textures(&mouse_pick, {w, h})
+	render.mouse_picking_resize(&mouse_pick, {w, h})
 }

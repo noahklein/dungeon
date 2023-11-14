@@ -169,3 +169,11 @@ mouse_picking_init_textures :: proc(mp: ^MousePicking, size: glm.ivec2) {
 	}).id
 	gl.NamedFramebufferTexture(mp.fbo, gl.COLOR_ATTACHMENT1, mp.entity_id_tex, 0)
 }
+
+mouse_picking_resize :: proc(mp: ^MousePicking, size: glm.ivec2) {
+	textures := [?]u32{mp.tex, mp.entity_id_tex}
+	gl.DeleteTextures(2, &textures[0])
+
+	mouse_picking_init_textures(mp, size)
+
+}
