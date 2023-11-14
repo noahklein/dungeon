@@ -26,7 +26,7 @@ State :: struct {
 state : State
 
 init :: proc(window: glfw.WindowHandle) {
-    imgui.CHECKVERSION()
+	imgui.CHECKVERSION()
 	imgui.CreateContext(nil)
 
 	io := imgui.GetIO()
@@ -49,13 +49,13 @@ init :: proc(window: glfw.WindowHandle) {
 shutdown :: proc() {
 	imgui_gl.Shutdown()
 	imgui_glfw.Shutdown()
-    imgui.DestroyContext(nil)
+	imgui.DestroyContext(nil)
 }
 
 draw :: proc() {
-    imgui_gl.NewFrame()
-    imgui_glfw.NewFrame()
-    imgui.NewFrame()
+	imgui_gl.NewFrame()
+	imgui_glfw.NewFrame()
+	imgui.NewFrame()
 
 	imgui.ShowMetricsWindow(nil)
 
@@ -122,15 +122,15 @@ draw :: proc() {
 
 	enitity_window()
 
-    imgui.Render()
-    imgui_gl.RenderDrawData(imgui.GetDrawData())
+	imgui.Render()
+	imgui_gl.RenderDrawData(imgui.GetDrawData())
 
-    when imgui.IMGUI_BRANCH == "docking" {
-        backup_current_window := glfw.GetCurrentContext()
-        imgui.UpdatePlatformWindows()
-        imgui.RenderPlatformWindowsDefault()
-        glfw.MakeContextCurrent(backup_current_window)
-    }
+	when imgui.IMGUI_BRANCH == "docking" {
+		backup_current_window := glfw.GetCurrentContext()
+		imgui.UpdatePlatformWindows()
+		imgui.RenderPlatformWindowsDefault()
+		glfw.MakeContextCurrent(backup_current_window)
+	}
 }
 
 enitity_window :: proc() {
