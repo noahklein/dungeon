@@ -47,6 +47,7 @@ player_data := [PlayerClass]PlayerData{
 
 Tile :: struct {
     type: TileType,
+    height: u32,
     player_id: PlayerId,
 }
 
@@ -323,6 +324,32 @@ get_path_to :: proc(keyframes: ^[dynamic]Keyframe, scale: glm.vec3, tile_id: Til
     })
 }
 
+on_click_tile :: proc(tile_id: TileId) {
+    if tile_id not_in path_finding.legal_moves {
+        return
+    }
+
+    player := fight.active_player
+    defer start_turn(player) // @TODO: for debugging, need an end turn button
+
+    if their_team := get_player(tile_id).team; their_team != .Enemy {
+        // Empty tile, move there.
+        move_player(player, tile_id)
+        player_animate_path(player, tile_id)
+        return
+    }
+
+    // Enemy tile, move next to them and attack.
+    next_to_enemy := path_finding.came_from[tile_id]
+    my_tile := fight.players[player].tile_id
+    if next_to_enemy != my_tile {
+        move_player(player, next_to_enemy)
+        player_animate_path(player, next_to_enemy)
+    }
+
+    attack(player, tile_id)
+}
+
 // TODO: take an attack type enum
 attack :: proc(player_id: PlayerId, target_tile_id: TileId) {
     target_tile := fight.level[target_tile_id]
@@ -369,14 +396,27 @@ attack :: proc(player_id: PlayerId, target_tile_id: TileId) {
     })
 }
 
+// @TODO: finish this
 shove :: proc(pos: glm.ivec2, dir: glm.ivec2) {
+    // Fly in the direction until we hit a shove blocker.
     target := pos + dir
-    for target = pos + dir; in_bounds(target); target += dir {
-        tile_id := coord_to_id(target)
-        if fight.level[tile_id].type == .Void {
-            break
-        }
+    for !is_shove_blocker(target) {
+        target += dir
     }
+
+    target_id := coord_to_id(target)
+    if !in_bounds(target) || fight.level[target_id].type == .Void {
+
+    }
+}
+
+is_shove_blocker :: #force_inline proc(coord: glm.ivec2) -> bool {
+    if !in_bounds(coord) {
+        return true
+    }
+
+    tile_id := coord_to_id(coord)
+    return fight.level[tile_id].type == .Void
 }
 
 get_player :: proc(tile_id: TileId) -> Player {

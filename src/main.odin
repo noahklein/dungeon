@@ -89,8 +89,10 @@ main :: proc() {
 	glfw.SetFramebufferSizeCallback(window, resize_callback)
 
 	// Initialize ImGUI; MUST come after input handlers.
-	gui.init(window)
-	defer gui.shutdown()
+	when ODIN_DEBUG {
+		gui.init(window)
+		defer gui.shutdown()
+	}
 
     // Assets
 	if err := render.assets_init(); err != nil {
@@ -130,54 +132,30 @@ main :: proc() {
 		dt := now - prev_frame_time
 		prev_frame_time = now
 
-		input : bit_set[game.Event]
-		if glfw.GetKey(window, glfw.KEY_A) == glfw.PRESS {
-			input += {.Left}
-		} else if glfw.GetKey(window, glfw.KEY_D) == glfw.PRESS {
-			input += {.Right}
-		}
-		if glfw.GetKey(window, glfw.KEY_W) == glfw.PRESS {
-			input += {.Forward}
-		} else if glfw.GetKey(window, glfw.KEY_S) == glfw.PRESS {
-			input += {.Backward}
-		}
-		if glfw.GetKey(window, glfw.KEY_Q) == glfw.PRESS {
-			input += {.FlyUp}
-		}
-		if glfw.GetKey(window, glfw.KEY_E) == glfw.PRESS {
-			input += {.FlyDown}
-		}
+        glfw.PollEvents()
 
+		input := get_input(window)
 		view := game.update(dt, input)
 		game.animation_update(dt)
-
-        glfw.PollEvents()
 
 		hovered_id := game.TileId(render.mouse_picking_read(mouse_pick, mouse_coords))
 		if hovered_id < 0 || hovered_id > 99999 { // @Hack: should clamp to valid IDs.
 			hovered_id = -1
 		}
 
-		if hovered_id in game.path_finding.legal_moves {
-			if !gui.want_capture_mouse() && glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
-				player := game.fight.active_player
-				if their_team := game.get_player(hovered_id).team; their_team == .Enemy {
-					next_to_enemy := game.path_finding.came_from[hovered_id]
-					my_tile := game.fight.players[player].tile_id
-					if next_to_enemy != my_tile {
-						game.move_player(player, next_to_enemy)
-						game.player_animate_path(player, next_to_enemy)
-					}
-
-					// He attac
-					game.attack(player, hovered_id)
-				} else {
-					game.move_player(player, hovered_id)
-					game.player_animate_path(player, hovered_id)
+		click_tile: if glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
+			when ODIN_DEBUG {
+				if gui.want_capture_mouse() {
+					break click_tile
 				}
+				if gui.state.editor_mode {
+					// @TODO: select in tile editor
 
-				game.start_turn(player)
+					break click_tile
+				}
 			}
+
+			game.on_click_tile(hovered_id)
 		}
 
 		// Draw scene to framebuffer
@@ -397,13 +375,29 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 		} else {
 			glfw.SetInputMode(window, glfw.CURSOR, glfw.CURSOR_NORMAL)
 		}
+
+		when ODIN_DEBUG {
+			gui.unfocus()
+		}
 	}
 }
 
 key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods: i32) {
 	context = runtime.default_context()
-	if key == glfw.KEY_S && mods == glfw.MOD_CONTROL && action == glfw.PRESS {
-		game.world_save_to_file("config.json")
+	when ODIN_DEBUG {
+		if key == glfw.KEY_S && mods == glfw.MOD_CONTROL && action == glfw.PRESS {
+			game.world_save_to_file("config.json")
+		}
+
+		if key == glfw.KEY_F1 && action == glfw.PRESS {
+			gui.state.editor_mode = !gui.state.editor_mode
+		}
+		if key == glfw.KEY_GRAVE_ACCENT && action == glfw.PRESS {
+			gui.state.console.visible = !gui.state.console.visible
+			if !gui.state.console.visible {
+				gui.unfocus()
+			}
+		}
 	}
 }
 
@@ -414,4 +408,30 @@ resize_callback :: proc "c" (window: glfw.WindowHandle, w, h: i32) {
 	gl.Viewport(0, 0, w, h)
 	game.cam.aspect = SCREEN.x / SCREEN.y
 	render.mouse_picking_resize(&mouse_pick, {w, h})
+}
+
+get_input :: proc(window: glfw.WindowHandle) -> (input: bit_set[game.Event]) {
+	when ODIN_DEBUG {
+		if gui.state.io.WantCaptureKeyboard {
+			return
+		}
+	}
+
+	if glfw.GetKey(window, glfw.KEY_A) == glfw.PRESS {
+		input += {.Left}
+	} else if glfw.GetKey(window, glfw.KEY_D) == glfw.PRESS {
+		input += {.Right}
+	}
+	if glfw.GetKey(window, glfw.KEY_W) == glfw.PRESS {
+		input += {.Forward}
+	} else if glfw.GetKey(window, glfw.KEY_S) == glfw.PRESS {
+		input += {.Backward}
+	}
+	if glfw.GetKey(window, glfw.KEY_Q) == glfw.PRESS {
+		input += {.FlyUp}
+	} else if glfw.GetKey(window, glfw.KEY_E) == glfw.PRESS {
+		input += {.FlyDown}
+	}
+
+	return
 }

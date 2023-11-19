@@ -170,5 +170,4 @@ mouse_picking_resize :: proc(mp: ^MousePicking, size: glm.ivec2) {
 	gl.DeleteTextures(2, &textures[0])
 
 	mouse_picking_init_textures(mp, size)
-
 }

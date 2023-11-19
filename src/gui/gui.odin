@@ -21,6 +21,9 @@ State :: struct {
 	io: ^imgui.IO,
 	entity_id: int,
 	entity_type: EntityType,
+	editor_mode: bool, // Enable clicking on an entity to select.
+
+	console: Console,
 }
 
 state : State
@@ -30,7 +33,7 @@ init :: proc(window: glfw.WindowHandle) {
 	imgui.CreateContext(nil)
 
 	io := imgui.GetIO()
-	io.ConfigFlags += {.NavEnableKeyboard, .NavEnableSetMousePos}
+	io.ConfigFlags += {.NavEnableSetMousePos}
 	when imgui.IMGUI_BRANCH == "docking" {
 		io.ConfigFlags += {.DockingEnable}
 		io.ConfigFlags += {.ViewportsEnable}
@@ -44,12 +47,15 @@ init :: proc(window: glfw.WindowHandle) {
 
 	imgui_glfw.InitForOpenGL(window, true)
 	imgui_gl.Init("#version 450 core")
+
+	console_init()
 }
 
 shutdown :: proc() {
 	imgui_gl.Shutdown()
 	imgui_glfw.Shutdown()
 	imgui.DestroyContext(nil)
+	console_deinit()
 }
 
 draw :: proc() {
@@ -57,11 +63,9 @@ draw :: proc() {
 	imgui_glfw.NewFrame()
 	imgui.NewFrame()
 
-	imgui.ShowMetricsWindow(nil)
+	// @TODO: stats window (FPS, etc.)
 
-	// using game.world
-
-	imgui.Begin("Entities", nil, {.NoMove, .NoCollapse, .MenuBar})
+	imgui.Begin("Entities", nil, {.NoMove, .NoCollapse, .MenuBar, .NoFocusOnAppearing})
 	if imgui.BeginMenuBar() {
 		if imgui.BeginMenu("New") {
 			if imgui.MenuItem("Cube") {
@@ -121,6 +125,7 @@ draw :: proc() {
 	imgui.End()
 
 	enitity_window()
+	console_window()
 
 	imgui.Render()
 	imgui_gl.RenderDrawData(imgui.GetDrawData())
@@ -134,7 +139,7 @@ draw :: proc() {
 }
 
 enitity_window :: proc() {
-	imgui.Begin("Entity", nil, nil)
+	imgui.Begin("Entity", nil, {.NoFocusOnAppearing})
 	defer imgui.End()
 
 	if state.entity_id == -1 {
@@ -153,11 +158,6 @@ entity_edit :: proc(e: ^game.Ent) {
 	transform_edit(&e.transform)
 	if imgui.CollapsingHeader("Texture", nil) {
 		texture_edit(&e.texture)
-		// imgui.ComboChar("Texture", &idx, &items[0], i32(len(items)))
-		// unit := i32(e.texture.unit)
-		// if imgui.ComboChar("Texture", &unit, &render.TEXTURE_PATHS[0], i32(len(render.TEXTURE_PATHS))) {
-		// 	e.texture.unit = u32(unit)
-		// }
 	}
 }
 
@@ -168,17 +168,13 @@ transform_edit :: proc(e: ^game.Transform) {
 }
 
 texture_edit :: proc(tex: ^game.Texture) {
+	paths := render.TEXTURE_PATHS
+
 	unit := i32(tex.unit)
-	// imgui.ComboChar("Texture", &unit, raw_data(render.TEXTURE_PATHS[:]), i32(len(render.TEXTURE_PATHS)))
-	imgui.Combo("Texture", &unit, render.TEXTURE_PATHS[0])
-	// if imgui.BeginCombo("Texture", render.TEXTURE_PATHS[tex.unit], nil) {
-	// 	for path, unit in render.TEXTURE_PATHS {
-	// 		if imgui.Selectable(path) {
-	// 			tex.unit = u32(unit)
-	// 		}
-	// 	}
-	// 	imgui.EndCombo()
-	// }
+	if imgui.ComboChar("Texture", &unit, &paths[0], i32(len(paths))) {
+		tex.unit = u32(unit)
+
+	}
 
 	imgui.DragScalar("Unit", .U32, &tex.unit)
 	imgui.DragScalar("Tiling", .U32, &tex.tiling)
@@ -197,6 +193,14 @@ is_selected :: proc(type: EntityType, id: int) -> bool {
 	return state.entity_type == type && state.entity_id == id
 }
 
-want_capture_mouse :: proc() -> bool {
+want_capture_mouse :: #force_inline proc() -> bool {
+	when ODIN_DEBUG {
+		return true
+	}
 	return state.io.WantCaptureMouse
+}
+
+// Unfocus all imgui windows.
+unfocus :: #force_inline proc() {
+	imgui.SetWindowFocusStr(nil)
 }

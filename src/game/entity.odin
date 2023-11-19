@@ -89,6 +89,8 @@ world_load :: proc(path: string) {
         return
     }
 
+    delete(entities)
+    delete(lights)
     entities = level.entities
     lights = level.lights
 
