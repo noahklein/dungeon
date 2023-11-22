@@ -106,6 +106,9 @@ main :: proc() {
 	mouse_pick = render.mouse_picking_init(SCREEN) or_else
 		panic("Failed to init mouse_picking FBO")
 
+	terrain := render.terrain_init(100, render.assets.shaders.terrain)
+	defer render.terrain_deinit(&terrain)
+
 	game.init_fight()
 	defer game.deinit_fight()
 
@@ -146,12 +149,12 @@ main :: proc() {
 		click_tile: if glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
 			when ODIN_DEBUG {
 				if gui.want_capture_mouse() {
-					break click_tile
+					// break click_tile
 				}
 				if gui.state.editor_mode {
 					// @TODO: select in tile editor
 
-					break click_tile
+					// break click_tile
 				}
 			}
 
@@ -328,6 +331,9 @@ main :: proc() {
 				}
 			}
 		}
+
+		// render.terrain_update(&terrain, dt)
+		render.terrain_draw(&terrain, &projection[0, 0], &view[0, 0])
 
 		{
 			// Draw to screen

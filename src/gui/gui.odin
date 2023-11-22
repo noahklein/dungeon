@@ -194,8 +194,8 @@ is_selected :: proc(type: EntityType, id: int) -> bool {
 }
 
 want_capture_mouse :: #force_inline proc() -> bool {
-	when ODIN_DEBUG {
-		return true
+	when !ODIN_DEBUG {
+		return false
 	}
 	return state.io.WantCaptureMouse
 }

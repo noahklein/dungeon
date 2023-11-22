@@ -46,6 +46,7 @@ ShaderMap :: struct {
     main: Shader,
     line: Shader,
     quad: Shader,
+    terrain: Shader,
 }
 
 // Order must match ShaderMap!
@@ -53,6 +54,7 @@ SHADER_PATHS :: [?]string{
     "assets/shaders/main.glsl",
     "assets/shaders/line.glsl",
     "assets/shaders/quad.glsl",
+    "assets/shaders/terrain.glsl",
 }
 
 assets : Assets
@@ -115,6 +117,7 @@ assets_init :: proc() -> AssetLoadError {
     assets.shaders.main = shaders[0]
     assets.shaders.line = shaders[1]
     assets.shaders.quad = shaders[2]
+    assets.shaders.terrain = shaders[3]
 
     return nil
 }
