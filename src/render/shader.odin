@@ -181,7 +181,7 @@ setStruct :: proc(id: u32, name: string, $T: typeid, obj: T) {
 	for field_name in reflect.struct_field_names(T) {
 		field := reflect.struct_field_by_name(T, field_name)
 		val := reflect.struct_field_value(obj, field)
-		
+
 		name_parts := [?]string{name, ".", field_name}
 		full_name := strings.clone_to_cstring(strings.concatenate(name_parts[:]))
 		switch v in val {

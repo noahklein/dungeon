@@ -7,6 +7,7 @@ import "core:os"
 import "core:io"
 
 import "../render"
+import "../storage"
 
 import "vendor:glfw"
 
@@ -23,17 +24,14 @@ Ent :: struct {
     mesh_id: render.MeshId,
     texture: Texture,
     animation: Animation,
-    flags: bit_set[EntityFlags],
+
+    rigidbody_id: Maybe(storage.DenseID),
 }
 
 EntityList :: [dynamic]Ent
 entities : EntityList
 
 lights : [dynamic]PointLight
-
-EntityFlags :: enum {
-    CameraRelative,
-}
 
 Texture :: struct {
     unit, tiling: u32,

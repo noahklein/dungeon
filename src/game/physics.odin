@@ -1,8 +1,60 @@
 package game
 
 import glm "core:math/linalg/glsl"
+import "../storage"
 
 EPSILON :: 0.0001
+C :: 100 // Speed of light
+
+Physics :: struct {
+    gravity: glm.vec3,
+    rigidbodies: storage.Dense(Rigidbody),
+}
+
+physics := Physics{
+    gravity = {0, -9.81, 0},
+}
+
+Rigidbody :: struct {
+    mass: f32,
+    velocity, force: glm.vec3,
+}
+
+physics_deinit :: proc() {
+    storage.dense_deinit(physics.rigidbodies)
+}
+
+physics_add_rigidbody :: proc(ent_id: int, mass: f32) {
+    ent := &entities[ent_id]
+    ent.rigidbody_id = storage.dense_add(&physics.rigidbodies, Rigidbody{
+        mass = mass,
+    })
+}
+
+physics_update :: proc(dt: f32) {
+    for &ent in entities {
+        rigidbody_id, ok := ent.rigidbody_id.?
+        if !ok {
+            continue
+        }
+
+        rb := storage.dense_get(physics.rigidbodies, rigidbody_id)
+        if rb == nil {
+            continue // TODO: handle deletion?
+        }
+        rb.force += rb.mass * physics.gravity
+        rb.velocity += rb.force / rb.mass * dt
+        rb.velocity = glm.clamp_vec3(rb.velocity, {-C, -C, -C}, {C, C, C})
+
+        ent.pos += rb.velocity * dt
+        // @HACK: replace with plane collision
+        if ent.pos.y < 1 {
+            ent.pos.y = 1
+        }
+
+        rb.force = 0
+    }
+}
 
 Plane :: struct {
     center, normal: glm.vec3,

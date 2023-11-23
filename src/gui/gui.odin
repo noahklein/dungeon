@@ -12,6 +12,7 @@ import imgui_gl "../../libs/imgui/imgui_impl_opengl3"
 
 import "../game"
 import "../render"
+import "../storage"
 
 EntityType :: enum {
 	Entity,
@@ -159,6 +160,20 @@ entity_edit :: proc(e: ^game.Ent) {
 	if imgui.CollapsingHeader("Texture", nil) {
 		texture_edit(&e.texture)
 	}
+
+	if imgui.CollapsingHeader("Rigidbody", nil) {
+		rb_id, ok := e.rigidbody_id.?
+		if ok {
+			rigidbody_edit(rb_id)
+			return
+		}
+
+		if imgui.Button("Add Rigidbody") {
+			game.physics_add_rigidbody(state.entity_id, 1)
+			// e.rigidbody_id = storage.dense_add(&game.physics.rigidbodies, game.Rigidbody{})
+		}
+
+	}
 }
 
 transform_edit :: proc(e: ^game.Transform) {
@@ -178,6 +193,16 @@ texture_edit :: proc(tex: ^game.Texture) {
 
 	imgui.DragScalar("Unit", .U32, &tex.unit)
 	imgui.DragScalar("Tiling", .U32, &tex.tiling)
+}
+
+rigidbody_edit :: proc(rb_id: storage.DenseID) {
+	rb := storage.dense_get(game.physics.rigidbodies, rb_id)
+	if rb == nil {
+		return
+	}
+
+	imgui.DragFloat3("Velocity", transmute(^[3]f32)&rb.velocity)
+
 }
 
 point_light_edit :: proc(p: ^game.PointLight) {

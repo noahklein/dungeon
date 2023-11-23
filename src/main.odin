@@ -111,6 +111,7 @@ main :: proc() {
 
 	game.init_fight()
 	defer game.deinit_fight()
+	defer game.physics_deinit()
 
 	// game.world_load("config.json")
 	game.init_camera(aspect = SCREEN.x / SCREEN.y)
@@ -138,7 +139,8 @@ main :: proc() {
         glfw.PollEvents()
 
 		input := get_input(window)
-		view := game.update(dt, input)
+		view := game.input_update(dt, input)
+		game.physics_update(dt)
 		game.animation_update(dt)
 
 		hovered_id := game.TileId(render.mouse_picking_read(mouse_pick, mouse_coords))

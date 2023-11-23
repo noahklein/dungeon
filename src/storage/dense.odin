@@ -31,8 +31,10 @@ Dense :: struct($T: typeid) {
     deleted: [dynamic]u16, // Stack containing deleted indices.
 }
 
-dense_init :: proc() {
-
+dense_deinit :: proc(d: Dense($T)) {
+    delete(d.entries)
+    delete(d.generations)
+    delete(d.deleted)
 }
 
 @(require_results)
@@ -54,8 +56,7 @@ dense_remove :: proc(d: ^Dense($T), id: DenseID) {
         return // We already removed this guy.
     }
 
-    // Incrementing genration here rather than in dense_add()
-    // ensures that items can't be removed twice.
+    // Incrementing genration here rather than in dense_add() so that items can't be removed twice.
     d.generations[idx] += 1
     append(&d.deleted, idx)
 }
