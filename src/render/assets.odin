@@ -21,12 +21,14 @@ MESH_PATHS := [MeshId]cstring{
     .Cube = "assets/cube.obj",
     .Quad = "assets/quad.obj",
     .Ninja = "assets/ninja.obj",
+    .Sphere = "assets/sphere.obj",
 }
 
 MeshId :: enum u8 {
     Cube,
     Quad,
     Ninja,
+    Sphere,
 }
 
 mesh :: #force_inline proc(id: MeshId) -> ^Mesh {

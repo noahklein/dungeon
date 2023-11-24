@@ -1,14 +1,19 @@
+// Physics system
+// References:
+//     * https://winter.dev/articles/physics-engine/DirkGregorius_Contacts.pdf
 package game
 
 import glm "core:math/linalg/glsl"
 import "../storage"
 
 EPSILON :: 0.0001
-C :: 100 // Speed of light
+C :: 50 // Speed of light
 
 Physics :: struct {
     gravity: glm.vec3,
     rigidbodies: storage.Dense(Rigidbody),
+    spheres: [dynamic]SphereCollider,
+    planes: [dynamic]PlaneCollider,
 }
 
 physics := Physics{
@@ -21,32 +26,38 @@ Rigidbody :: struct {
 }
 
 physics_deinit :: proc() {
-    storage.dense_deinit(physics.rigidbodies)
+   storage.dense_deinit(physics.rigidbodies)
+   delete(physics.spheres)
+   delete(physics.planes)
 }
 
-physics_add_rigidbody :: proc(ent_id: int, mass: f32) {
+physics_add_rigidbody :: proc(ent_id: EntityId, mass: f32) {
     ent := &entities[ent_id]
     ent.rigidbody_id = storage.dense_add(&physics.rigidbodies, Rigidbody{
         mass = mass,
     })
 }
 
+physics_get_rigidbody :: proc(ent_id: EntityId) -> (rb: ^Rigidbody, ok: bool) {
+    id := entities[ent_id].rigidbody_id.? or_return
+    rb = storage.dense_get(physics.rigidbodies, id)
+    return rb, rb != nil
+}
+
 physics_update :: proc(dt: f32) {
     for &ent in entities {
-        rigidbody_id, ok := ent.rigidbody_id.?
-        if !ok {
-            continue
-        }
-
+        rigidbody_id := ent.rigidbody_id.? or_continue
         rb := storage.dense_get(physics.rigidbodies, rigidbody_id)
         if rb == nil {
-            continue // TODO: handle deletion?
+            assert(false, "Entity pointing to missing rigidbody")
+            continue // @TODO: handle deletion?
         }
         rb.force += rb.mass * physics.gravity
+
         rb.velocity += rb.force / rb.mass * dt
         rb.velocity = glm.clamp_vec3(rb.velocity, {-C, -C, -C}, {C, C, C})
-
         ent.pos += rb.velocity * dt
+
         // @HACK: replace with plane collision
         if ent.pos.y < 1 {
             ent.pos.y = 1
@@ -54,39 +65,133 @@ physics_update :: proc(dt: f32) {
 
         rb.force = 0
     }
+
+    // Collision detection, fully O(N²); extremely naive approach.
+    for sphere_a in physics.spheres {
+        for sphere_b in physics.spheres {
+            if sphere_a.ent_id == sphere_b.ent_id {
+                continue
+            }
+
+            contact := is_colliding(sphere_a, sphere_b) or_continue
+            solve_collision(contact, sphere_a.ent_id, sphere_b.ent_id)
+        }
+
+        for plane_b in physics.planes {
+            // contact := is_colliding(sphere_a, plane_b) or_continue
+            // solve_collision(sphere_a, plane_b)
+        }
+    }
 }
 
-Plane :: struct {
-    center, normal: glm.vec3,
-}
-
-raycast_plane :: proc(plane: Plane, origin, dir: glm.vec3) -> bool {
-    denom := glm.dot(plane.normal, dir)
-    if abs(denom) <= EPSILON {
-        return false // We're perpendicular.
+// O(n) lookup by entity id. Only use for devtools or very infrequently.
+physics_find_collider :: proc(ent_id: EntityId) -> (Collider, bool) {
+    assert(ODIN_DEBUG)
+    for &sphere in physics.spheres {
+        if sphere.ent_id == ent_id {
+            return &sphere, true
+        }
     }
 
-    t := glm.dot(plane.center - origin, plane.normal) / denom
-    return t > EPSILON
+    for &plane in physics.planes {
+        if plane.ent_id == ent_id {
+            return &plane, true
+        }
+    }
+
+    return {}, false
 }
 
-Box :: struct {
-    min, max: glm.vec3,
+Collider :: union {
+    ^SphereCollider,
+    ^PlaneCollider,
 }
 
-// See https://tavianator.com/2011/ray_box.html.
-raycast_box :: proc(box: Box, origin, dir: glm.vec3) -> (glm.vec3, bool) {
-    min_dist := (box.min - origin) / dir
-    max_dist := (box.max - origin) / dir
+SphereCollider :: struct {
+    ent_id: EntityId,
+    radius: f32,
+    center: glm.vec3,
+}
 
-    // Normalize
-    mins := glm.min(min_dist, max_dist)
-    maxs := glm.max(min_dist, max_dist)
+PlaneCollider :: struct {
+    ent_id: EntityId,
+    normal: glm.vec3,
+    distance: f32, // Distance from origin
+}
 
-    smallest := min(mins.x, mins.y, mins.z)
-    biggest  := max(maxs.x, maxs.y, maxs.z)
+CollisionPoint :: struct {
+    pos: glm.vec3,
+    depth: f32,
+}
 
-    is_hit := biggest >= 0 && biggest >= smallest
-    hit_point := origin + (smallest * dir)
-    return hit_point, is_hit
+Manifold :: struct {
+    points: [4]CollisionPoint,
+    count: int, // Number of points
+    normal: glm.vec3,
+}
+
+is_colliding :: proc{
+    is_colliding_spheres,
+    is_colliding_sphere_plane,
+}
+
+is_colliding_spheres :: proc(sa, sb: SphereCollider) -> (Manifold, bool) {
+    pos_a := entities[sa.ent_id].pos + sa.center
+    pos_b := entities[sb.ent_id].pos + sb.center
+
+    ab := pos_b - pos_a
+    distance := glm.length(ab)
+    if distance < EPSILON || distance > sa.radius + sb.radius {
+        return {}, false
+    }
+
+    normal := glm.normalize(ab)
+    point_a := pos_a + sa.radius * normal // Surface point on A inside B
+    point_b := pos_b + sb.radius * normal // Surface point on B inside A
+    return Manifold{
+        normal = normal,
+        count = 1,
+        points = {
+            0 = {
+                pos = point_a + point_b / 2, // Halfway between collision points.
+                depth = distance - sa.radius - sb.radius,
+            },
+        },
+    }, true
+}
+
+is_colliding_sphere_plane :: proc(sphere: SphereCollider, plane: PlaneCollider) -> (Manifold, bool) {
+    sphere_pos := entities[sphere.ent_id].pos
+    distance := glm.dot(plane.normal, sphere_pos) - plane.distance
+    return {}, distance < sphere.radius
+}
+
+solve_collision :: proc(manifold: Manifold, ent_a, ent_b: EntityId) {
+    rb_a, _ := physics_get_rigidbody(ent_a)
+    rb_b, _ := physics_get_rigidbody(ent_b)
+
+    a_vel := glm.vec3(0) if rb_a == nil else rb_a.velocity
+    b_vel := glm.vec3(0) if rb_b == nil else rb_b.velocity
+    rel_vel := b_vel - a_vel
+
+    speed := glm.dot(rel_vel, manifold.normal) // Strength of impulse
+    if speed >= 0 {
+        return // Prevent negative impulses (i.e. pulling objects closer.)
+    }
+
+    a_inv_mass := 1 if rb_a == nil else 1 / rb_a.mass
+    b_inv_mass := 1 if rb_b == nil else 1 / rb_b.mass
+
+    power := speed / (a_inv_mass + b_inv_mass)
+    impulse := power * manifold.normal
+
+    for p in 0..<manifold.count {
+        point := manifold.points[p]
+
+        if rb_a != nil {
+            rb_a.velocity = rb_a.velocity
+        }
+
+    }
+
 }

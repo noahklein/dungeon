@@ -140,8 +140,10 @@ main :: proc() {
 
 		input := get_input(window)
 		view := game.input_update(dt, input)
-		game.physics_update(dt)
-		game.animation_update(dt)
+		if !gui.state.editor_mode {
+			game.physics_update(dt)
+			game.animation_update(dt)
+		}
 
 		hovered_id := game.TileId(render.mouse_picking_read(mouse_pick, mouse_coords))
 		if hovered_id < 0 || hovered_id > 99999 { // @Hack: should clamp to valid IDs.
@@ -151,7 +153,7 @@ main :: proc() {
 		click_tile: if glfw.GetMouseButton(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS {
 			when ODIN_DEBUG {
 				if gui.want_capture_mouse() {
-					// break click_tile
+					break click_tile
 				}
 				if gui.state.editor_mode {
 					// @TODO: select in tile editor
@@ -232,6 +234,22 @@ main :: proc() {
 						texture = {100, 1}, // @Hack: shader checks for 100 to draw the editor outline.
 						transform = m,
 					})
+
+					// Draw collider:
+					if collider, ok := game.physics_find_collider(i); ok {
+						switch c in collider {
+							case ^game.SphereCollider:
+								collider_transform := game.Transform{
+									pos = entity.pos + c.center,
+									scale = glm.vec3(c.radius),
+								}
+								render.mesh_draw(render.mesh(.Sphere), render.Instance{
+									transform = game.transform_model(collider_transform),
+									color = {1, 0, 0, 0.5},
+								})
+							case ^game.PlaneCollider:
+						}
+					}
 				}
 			}
 		}

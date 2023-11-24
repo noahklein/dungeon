@@ -23,11 +23,12 @@ Ent :: struct {
     using transform: Transform,
     mesh_id: render.MeshId,
     texture: Texture,
-    animation: Animation,
+    animation: Animation, // @TODO: move to dedicated system, nobody cares about this.
 
     rigidbody_id: Maybe(storage.DenseID),
 }
 
+EntityId :: int
 EntityList :: [dynamic]Ent
 entities : EntityList
 
@@ -39,7 +40,7 @@ Texture :: struct {
 
 transform_model :: proc(e: Transform) -> glm.mat4 {
     quat := glm.quatFromEuler(e.rot)
-    return glm.mat4Translate(e.scale / 2) * glm.mat4Translate(e.pos) * glm.mat4FromQuat(quat) * glm.mat4Scale(e.scale)
+    return glm.mat4Translate(e.pos) * glm.mat4FromQuat(quat) * glm.mat4Scale(e.scale)
 }
 
 Level :: struct {

@@ -20,7 +20,7 @@ EntityType :: enum {
 }
 State :: struct {
 	io: ^imgui.IO,
-	entity_id: int,
+	entity_id: game.EntityId,
 	entity_type: EntityType,
 	editor_mode: bool, // Enable clicking on an entity to select.
 
@@ -71,7 +71,7 @@ draw :: proc() {
 		if imgui.BeginMenu("New") {
 			if imgui.MenuItem("Cube") {
 				append(&game.entities, game.Ent{})
-				state.entity_id = len(game.entities) - 1
+				state.entity_id = game.EntityId(len(game.entities) - 1)
 				state.entity_type = .Entity
 			}
 			if imgui.MenuItem("Point Light") {
@@ -161,6 +161,10 @@ entity_edit :: proc(e: ^game.Ent) {
 		texture_edit(&e.texture)
 	}
 
+	if imgui.CollapsingHeader("Collider", nil) {
+		collider_edit(state.entity_id)
+	}
+
 	if imgui.CollapsingHeader("Rigidbody", nil) {
 		rb_id, ok := e.rigidbody_id.?
 		if ok {
@@ -172,8 +176,8 @@ entity_edit :: proc(e: ^game.Ent) {
 			game.physics_add_rigidbody(state.entity_id, 1)
 			// e.rigidbody_id = storage.dense_add(&game.physics.rigidbodies, game.Rigidbody{})
 		}
-
 	}
+
 }
 
 transform_edit :: proc(e: ^game.Transform) {
@@ -202,7 +206,32 @@ rigidbody_edit :: proc(rb_id: storage.DenseID) {
 	}
 
 	imgui.DragFloat3("Velocity", transmute(^[3]f32)&rb.velocity)
+}
 
+collider_edit :: proc(ent_id: game.EntityId) {
+	collider, exists := game.physics_find_collider(ent_id)
+	if !exists {
+		if imgui.Button("Add Sphere Collider") {
+			append(&game.physics.spheres, game.SphereCollider{
+				ent_id = ent_id,
+				radius = 1,
+			})
+		}
+		if imgui.Button("Add Plane Collider") {
+			append(&game.physics.planes, game.PlaneCollider{
+				ent_id = ent_id,
+			})
+		}
+		return
+	}
+
+	switch c in collider {
+		case ^game.SphereCollider:
+			imgui.DragFloat3("Center", transmute(^[3]f32)&c.center)
+			imgui.DragFloatEx("Radius", &c.radius, 0.05, 0.1, 20, nil, nil)
+		case ^game.PlaneCollider:
+			imgui.DragFloat3("Normal", transmute(^[3]f32)&c.normal)
+	}
 }
 
 point_light_edit :: proc(p: ^game.PointLight) {
