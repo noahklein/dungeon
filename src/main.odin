@@ -113,6 +113,23 @@ main :: proc() {
 	defer game.deinit_fight()
 	defer game.physics_deinit()
 
+	{
+		// Floor
+		append(&game.entities, game.Ent{
+			mesh_id = .Cube,
+			pos = {-50, -1, -50},
+			scale = {100, 1, 100},
+		})
+		floor_id := len(game.entities) - 1
+		append(&game.physics.planes, game.PlaneCollider{
+			ent_id = floor_id,
+			normal = {0, 1, 0},
+			distance = 0,
+		})
+	}
+
+
+
 	// game.world_load("config.json")
 	game.init_camera(aspect = SCREEN.x / SCREEN.y)
 	game.start_turn(0)
@@ -410,6 +427,11 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 
 key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods: i32) {
 	context = runtime.default_context()
+
+	if key == glfw.KEY_R && action == glfw.PRESS {
+		game.fire_ball()
+	}
+
 	when ODIN_DEBUG {
 		if key == glfw.KEY_S && mods == glfw.MOD_CONTROL && action == glfw.PRESS {
 			game.world_save_to_file("config.json")
@@ -457,6 +479,10 @@ get_input :: proc(window: glfw.WindowHandle) -> (input: bit_set[game.Event]) {
 		input += {.FlyUp}
 	} else if glfw.GetKey(window, glfw.KEY_E) == glfw.PRESS {
 		input += {.FlyDown}
+	}
+
+	if glfw.GetKey(window, glfw.KEY_R) == glfw.PRESS {
+		input += {.Fire}
 	}
 
 	return

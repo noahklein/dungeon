@@ -1,10 +1,12 @@
 package game
 
 import glm "core:math/linalg/glsl"
+import "core:math/rand"
 
 Event :: enum {
     Forward, Backward, Left, Right,
     FlyUp, FlyDown,
+    Fire,
 }
 
 input_update :: proc(dt: f32, input: bit_set[Event]) -> (view: glm.mat4) {
@@ -25,5 +27,28 @@ input_update :: proc(dt: f32, input: bit_set[Event]) -> (view: glm.mat4) {
         cam.pos -= glm.vec3{0, 1, 0} * cam.speed * dt
     }
 
+    if .Fire in input {
+        // fire_ball()
+    }
+
     return look_at(cam)
+}
+
+fire_ball :: proc() {
+    append(&entities, Ent{
+        pos = {
+            rand.float32() * 10 - 5,
+            rand.float32() * 10 + 3,
+            rand.float32() * 10 - 5,
+        },
+        scale = glm.vec3(1),
+        texture = {tiling = 3},
+        mesh_id = .Sphere,
+    })
+    ball_id := len(entities) - 1
+    physics_add_rigidbody(ball_id, 1)
+    rb := physics_get_rigidbody(ball_id) or_else panic("missing rigidbody")
+    rb.force = {rand.float32(), rand.float32() - 1, 0}
+
+    append(&physics.spheres, SphereCollider{radius = 1, ent_id = ball_id})
 }

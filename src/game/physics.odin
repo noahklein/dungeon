@@ -119,15 +119,23 @@ PlaneCollider :: struct {
     distance: f32, // Distance from origin
 }
 
-CollisionPoint :: struct {
-    pos: glm.vec3,
+Manifold :: struct {
     depth: f32,
+    normal: glm.vec3,
 }
 
-Manifold :: struct {
-    points: [4]CollisionPoint,
-    count: int, // Number of points
-    normal: glm.vec3,
+manifold_points :: proc(point_a, point_b: glm.vec3) -> Manifold {
+    ba := point_a - point_b
+    depth := glm.length(ba)
+
+    if depth < EPSILON {
+        return { normal = {0, 1, 0}, depth = 1}
+    }
+
+    return {
+        normal = ba / depth,
+        depth = depth,
+    }
 }
 
 is_colliding :: proc{
@@ -148,30 +156,23 @@ is_colliding_spheres :: proc(sa, sb: SphereCollider) -> (Manifold, bool) {
     normal := glm.normalize(ab)
     point_a := pos_a + sa.radius * normal // Surface point on A inside B
     point_b := pos_b + sb.radius * normal // Surface point on B inside A
-    return Manifold{
-        normal = normal,
-        count = 1,
-        points = {
-            0 = {
-                pos = point_a + point_b / 2, // Halfway between collision points.
-                depth = distance - sa.radius - sb.radius,
-            },
-        },
-    }, true
+    return manifold_points(point_a, point_b), true
 }
 
 is_colliding_sphere_plane :: proc(sphere: SphereCollider, plane: PlaneCollider) -> (Manifold, bool) {
     sphere_pos := entities[sphere.ent_id].pos
     distance := glm.dot(plane.normal, sphere_pos) - plane.distance
-    return {}, distance < sphere.radius
+    return Manifold{
+        normal = plane.normal,
+    }, distance < sphere.radius
 }
 
 solve_collision :: proc(manifold: Manifold, ent_a, ent_b: EntityId) {
-    rb_a, _ := physics_get_rigidbody(ent_a)
-    rb_b, _ := physics_get_rigidbody(ent_b)
+    rb_a, is_dynamic_a := physics_get_rigidbody(ent_a)
+    rb_b, is_dynamic_b := physics_get_rigidbody(ent_b)
 
-    a_vel := glm.vec3(0) if rb_a == nil else rb_a.velocity
-    b_vel := glm.vec3(0) if rb_b == nil else rb_b.velocity
+    a_vel := rb_a.velocity if is_dynamic_a else glm.vec3(0)
+    b_vel := rb_b.velocity if is_dynamic_b else glm.vec3(0)
     rel_vel := b_vel - a_vel
 
     speed := glm.dot(rel_vel, manifold.normal) // Strength of impulse
@@ -179,19 +180,16 @@ solve_collision :: proc(manifold: Manifold, ent_a, ent_b: EntityId) {
         return // Prevent negative impulses (i.e. pulling objects closer.)
     }
 
-    a_inv_mass := 1 if rb_a == nil else 1 / rb_a.mass
-    b_inv_mass := 1 if rb_b == nil else 1 / rb_b.mass
+    a_inv_mass := 1 / rb_a.mass if is_dynamic_a else 1
+    b_inv_mass := 1 / rb_b.mass if is_dynamic_b else 1
 
     power := speed / (a_inv_mass + b_inv_mass)
     impulse := power * manifold.normal
 
-    for p in 0..<manifold.count {
-        point := manifold.points[p]
-
-        if rb_a != nil {
-            rb_a.velocity = rb_a.velocity
-        }
-
+    if is_dynamic_a {
+        rb_a.velocity -= impulse * a_inv_mass
     }
-
+    if is_dynamic_b {
+        rb_b.velocity += impulse * b_inv_mass
+    }
 }
