@@ -1,9 +1,10 @@
 // Physics system
 // References:
-//     * https://winter.dev/articles/physics-engine/DirkGregorius_Contacts.pdf
+//     * Collision/Manifolds - https://winter.dev/articles/physics-engine/DirkGregorius_Contacts.pdf
 package game
 
 import glm "core:math/linalg/glsl"
+import "core:fmt"
 import "../storage"
 
 EPSILON :: 0.0001
@@ -31,11 +32,13 @@ physics_deinit :: proc() {
    delete(physics.planes)
 }
 
-physics_add_rigidbody :: proc(ent_id: EntityId, mass: f32) {
+physics_add_rigidbody :: proc(ent_id: EntityId, mass: f32) -> ^Rigidbody {
     ent := &entities[ent_id]
     ent.rigidbody_id = storage.dense_add(&physics.rigidbodies, Rigidbody{
         mass = mass,
     })
+
+    return physics_get_rigidbody(ent_id) or_else panic("Missing rigidbody after add")
 }
 
 physics_get_rigidbody :: proc(ent_id: EntityId) -> (rb: ^Rigidbody, ok: bool) {
@@ -45,6 +48,7 @@ physics_get_rigidbody :: proc(ent_id: EntityId) -> (rb: ^Rigidbody, ok: bool) {
 }
 
 physics_update :: proc(dt: f32) {
+    // Apply forces.
     for &ent in entities {
         rigidbody_id := ent.rigidbody_id.? or_continue
         rb := storage.dense_get(physics.rigidbodies, rigidbody_id)
@@ -52,21 +56,18 @@ physics_update :: proc(dt: f32) {
             assert(false, "Entity pointing to missing rigidbody")
             continue // @TODO: handle deletion?
         }
+
         rb.force += rb.mass * physics.gravity
 
         rb.velocity += rb.force / rb.mass * dt
         rb.velocity = glm.clamp_vec3(rb.velocity, {-C, -C, -C}, {C, C, C})
         ent.pos += rb.velocity * dt
 
-        // @HACK: replace with plane collision
-        if ent.pos.y < 1 {
-            ent.pos.y = 1
-        }
-
         rb.force = 0
     }
 
     // Collision detection, fully O(N²); extremely naive approach.
+    // @TODO: Split into broad/narrow phase - maybe BSP or octrees?
     for sphere_a in physics.spheres {
         for sphere_b in physics.spheres {
             if sphere_a.ent_id == sphere_b.ent_id {
@@ -78,13 +79,15 @@ physics_update :: proc(dt: f32) {
         }
 
         for plane_b in physics.planes {
-            // contact := is_colliding(sphere_a, plane_b) or_continue
-            // solve_collision(sphere_a, plane_b)
+            contact := is_colliding(sphere_a, plane_b) or_continue
+            solve_collision(contact, sphere_a.ent_id, plane_b.ent_id)
         }
     }
 }
 
 // O(n) lookup by entity id. Only use for devtools or very infrequently.
+// NOTE: There are no collider ids because colliders are not ordered and so far nobody
+// cares about colliders besides for physics and GUI/devtools.
 physics_find_collider :: proc(ent_id: EntityId) -> (Collider, bool) {
     assert(ODIN_DEBUG)
     for &sphere in physics.spheres {
@@ -155,18 +158,33 @@ is_colliding_spheres :: proc(sa, sb: SphereCollider) -> (Manifold, bool) {
 
     normal := glm.normalize(ab)
     point_a := pos_a + sa.radius * normal // Surface point on A inside B
-    point_b := pos_b + sb.radius * normal // Surface point on B inside A
+    point_b := pos_b - sb.radius * normal // Surface point on B inside A
     return manifold_points(point_a, point_b), true
 }
 
 is_colliding_sphere_plane :: proc(sphere: SphereCollider, plane: PlaneCollider) -> (Manifold, bool) {
-    sphere_pos := entities[sphere.ent_id].pos
-    distance := glm.dot(plane.normal, sphere_pos) - plane.distance
+    sphere_pos := sphere.center + entities[sphere.ent_id].pos
+
+    // @TODO: rotate normal using entity's transform.
+    // Any point on the plane, doesn't matter.
+    normal := -plane.normal
+    point_on_plane := (normal * plane.distance) + entities[plane.ent_id].pos
+
+    // Distance from sphere center to plane point.
+    distance := glm.dot_vec3(point_on_plane - sphere_pos, normal)
+    if distance > sphere.radius {
+        return {}, false
+    }
+
     return Manifold{
-        normal = plane.normal,
-    }, distance < sphere.radius
+        normal = normal,
+        depth = distance,
+    }, true
 }
 
+// Impulse
+// J = m∆v
+// ∆v = J / m
 solve_collision :: proc(manifold: Manifold, ent_a, ent_b: EntityId) {
     rb_a, is_dynamic_a := physics_get_rigidbody(ent_a)
     rb_b, is_dynamic_b := physics_get_rigidbody(ent_b)
@@ -180,16 +198,37 @@ solve_collision :: proc(manifold: Manifold, ent_a, ent_b: EntityId) {
         return // Prevent negative impulses (i.e. pulling objects closer.)
     }
 
-    a_inv_mass := 1 / rb_a.mass if is_dynamic_a else 1
-    b_inv_mass := 1 / rb_b.mass if is_dynamic_b else 1
+    a_inv_mass := 1.0 / rb_a.mass if is_dynamic_a else 1.0
+    b_inv_mass := 1.0 / rb_b.mass if is_dynamic_b else 1.0
+    total_mass := a_inv_mass + b_inv_mass
 
-    power := speed / (a_inv_mass + b_inv_mass)
-    impulse := power * manifold.normal
+    impulse := manifold.normal * (-speed / total_mass)
 
+    // Heavier objects get pushed less.
     if is_dynamic_a {
-        rb_a.velocity -= impulse * a_inv_mass
+        dv := impulse * a_inv_mass
+        fmt.println("a ∆v:", dv)
+        a_vel -= dv
     }
     if is_dynamic_b {
-        rb_b.velocity += impulse * b_inv_mass
+        dv := impulse * b_inv_mass
+        fmt.println("b ∆v:", dv)
+        b_vel += dv
+    }
+
+    // @TODO: apply friction
+
+    // Move rigidbodies and apply collision force.
+    if is_dynamic_a {
+        delta_pos := manifold.normal * manifold.depth * (a_inv_mass / total_mass)
+        fmt.println("a ∆pos:", delta_pos)
+        entities[ent_a].pos -= delta_pos
+        rb_a.velocity = a_vel
+    }
+    if is_dynamic_b {
+        delta_pos := manifold.normal * manifold.depth * (b_inv_mass / total_mass)
+        fmt.println("b ∆pos:", delta_pos)
+        entities[ent_b].pos += delta_pos
+        rb_b.velocity = b_vel
     }
 }

@@ -23,6 +23,7 @@ State :: struct {
 	entity_id: game.EntityId,
 	entity_type: EntityType,
 	editor_mode: bool, // Enable clicking on an entity to select.
+	draw_colliders: bool,
 
 	console: Console,
 }
@@ -50,6 +51,8 @@ init :: proc(window: glfw.WindowHandle) {
 	imgui_gl.Init("#version 450 core")
 
 	console_init()
+
+	state.draw_colliders = true // @TODO: make toggleable
 }
 
 shutdown :: proc() {
@@ -97,6 +100,7 @@ draw :: proc() {
 			imgui.SameLine()
 			delete_label := fmt.ctprintf("X##%s", label)
 			if imgui.SmallButton(delete_label) {
+				// @HACK: this is gonna mess everything up. Replace it ASAP.
 				unordered_remove(&game.entities, i)
 				if state.entity_id == i {
 					state.entity_id = -1
@@ -143,7 +147,7 @@ enitity_window :: proc() {
 	imgui.Begin("Entity", nil, {.NoFocusOnAppearing})
 	defer imgui.End()
 
-	if state.entity_id == -1 {
+	if state.entity_id < 0 || state.entity_id >= len(game.entities) {
 		return
 	}
 
@@ -177,7 +181,6 @@ entity_edit :: proc(e: ^game.Ent) {
 			// e.rigidbody_id = storage.dense_add(&game.physics.rigidbodies, game.Rigidbody{})
 		}
 	}
-
 }
 
 transform_edit :: proc(e: ^game.Transform) {
@@ -205,6 +208,7 @@ rigidbody_edit :: proc(rb_id: storage.DenseID) {
 		return
 	}
 
+	imgui.DragFloat("Mass", &rb.mass)
 	imgui.DragFloat3("Velocity", transmute(^[3]f32)&rb.velocity)
 }
 

@@ -34,7 +34,7 @@ input_update :: proc(dt: f32, input: bit_set[Event]) -> (view: glm.mat4) {
     return look_at(cam)
 }
 
-fire_ball :: proc() {
+fire_ball :: proc() -> EntityId {
     append(&entities, Ent{
         pos = {
             rand.float32() * 10 - 5,
@@ -46,9 +46,11 @@ fire_ball :: proc() {
         mesh_id = .Sphere,
     })
     ball_id := len(entities) - 1
-    physics_add_rigidbody(ball_id, 1)
-    rb := physics_get_rigidbody(ball_id) or_else panic("missing rigidbody")
-    rb.force = {rand.float32(), rand.float32() - 1, 0}
+    physics_add_rigidbody(ball_id, mass = 10)
+    rb := physics_get_rigidbody(ball_id) or_else panic("missing rigidbody after adding rigidbody")
+    rb.force = {rand.float32(), 15, rand.float32()}
 
     append(&physics.spheres, SphereCollider{radius = 1, ent_id = ball_id})
+
+    return ball_id
 }

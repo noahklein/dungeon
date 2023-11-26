@@ -24,6 +24,9 @@ cursor_hidden : bool
 mouse_coords : glm.vec2
 mouse_pick : render.MousePicking // Mouse-picking framebuffer
 
+TIMESCALES := [?]f32{ 1.0 / 3.0, 1.0 / 2.0, 1.0, 2.0, 3.0 }
+timescale_i := len(TIMESCALES) / 2
+
 main :: proc() {
 	when ODIN_DEBUG {
 		// Report memory leaks
@@ -53,12 +56,13 @@ main :: proc() {
 	// Initialize glfw and window
     if !glfw.Init() {
         fmt.eprintln("GLFW init failed")
+		return
     }
     defer glfw.Terminate()
 
     window := glfw.CreateWindow(i32(SCREEN.x), i32(SCREEN.y), TITLE, nil, nil)
 	if window == nil {
-		fmt.eprint("GLFW failed to create window")
+		fmt.eprintln("GLFW failed to create window")
 		return
 	}
 	defer glfw.DestroyWindow(window)
@@ -104,7 +108,7 @@ main :: proc() {
 	render.quad_renderer_init(render.assets.shaders.quad)
 
 	mouse_pick = render.mouse_picking_init(SCREEN) or_else
-		panic("Failed to init mouse_picking FBO")
+		panic("Failed to init mouse picking FBO")
 
 	terrain := render.terrain_init(100, render.assets.shaders.terrain)
 	defer render.terrain_deinit(&terrain)
@@ -114,21 +118,40 @@ main :: proc() {
 	defer game.physics_deinit()
 
 	{
-		// Floor
+		// Floor for testing physics.
 		append(&game.entities, game.Ent{
 			mesh_id = .Cube,
-			pos = {-50, -1, -50},
+			pos = {-50, 0, -50},
 			scale = {100, 1, 100},
 		})
 		floor_id := len(game.entities) - 1
 		append(&game.physics.planes, game.PlaneCollider{
 			ent_id = floor_id,
 			normal = {0, 1, 0},
-			distance = 0,
+			distance = -1,
 		})
+
+
+		ball_with_force :: proc(pos: glm.vec3, mass: f32, force: glm.vec3) {
+			append(&game.entities, game.Ent{
+				mesh_id = .Sphere,
+				pos = pos,
+				scale = {1, 1, 1},
+				texture = {tiling = 3},
+			})
+			id := len(game.entities) - 1
+			rb := game.physics_add_rigidbody(id, mass)
+			rb.velocity = force
+
+			append(&game.physics.spheres, game.SphereCollider{
+				ent_id = id,
+				radius = 1,
+			})
+		}
+
+		ball_with_force({-10, 5, 0}, 3, {0, 0, 0})
+		ball_with_force({0, 5, 0}, 3, {-1, 0, 0})
 	}
-
-
 
 	// game.world_load("config.json")
 	game.init_camera(aspect = SCREEN.x / SCREEN.y)
@@ -158,8 +181,9 @@ main :: proc() {
 		input := get_input(window)
 		view := game.input_update(dt, input)
 		if !gui.state.editor_mode {
-			game.physics_update(dt)
-			game.animation_update(dt)
+			timescale := TIMESCALES[timescale_i]
+			game.physics_update(dt * timescale)
+			game.animation_update(dt * timescale)
 		}
 
 		hovered_id := game.TileId(render.mouse_picking_read(mouse_pick, mouse_coords))
@@ -251,39 +275,35 @@ main :: proc() {
 						texture = {100, 1}, // @Hack: shader checks for 100 to draw the editor outline.
 						transform = m,
 					})
-
-					// Draw collider:
-					if collider, ok := game.physics_find_collider(i); ok {
-						switch c in collider {
-							case ^game.SphereCollider:
-								collider_transform := game.Transform{
-									pos = entity.pos + c.center,
-									scale = glm.vec3(c.radius),
-								}
-								render.mesh_draw(render.mesh(.Sphere), render.Instance{
-									transform = game.transform_model(collider_transform),
-									color = {1, 0, 0, 0.5},
-								})
-							case ^game.PlaneCollider:
-						}
-					}
 				}
 			}
 		}
 
-		// Draw light
-		for light, i in game.lights {
-			when ODIN_DEBUG {
-				model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
-				// Draw editor outline.
-				if gui.is_selected(.Light, i) {
-					m := model * glm.mat4Scale({1.01, 1.01, 1.01})
-					render.mesh_draw(cube_mesh, render.Instance{
-						transform = m,
-						texture = {100, 1},
-						entity_id = -1,
-					})
+		// Draw colliders.
+		when ODIN_DEBUG {
+			if gui.state.draw_colliders do for sphere in game.physics.spheres {
+				transform := game.Transform{
+					pos = game.entities[sphere.ent_id].pos + sphere.center,
+					scale = glm.vec3(sphere.radius),
 				}
+				render.mesh_draw(render.mesh(.Sphere), render.Instance{
+					transform = game.transform_model(transform),
+					color = {1, 0, 0, 0.5},
+				})
+			}
+		}
+
+		// Draw light
+		when ODIN_DEBUG do for light, i in game.lights {
+			model := glm.mat4Translate(light.pos) * glm.mat4Scale(glm.vec3(0.1))
+			// Draw editor outline.
+			if gui.is_selected(.Light, i) {
+				m := model * glm.mat4Scale({1.01, 1.01, 1.01})
+				render.mesh_draw(cube_mesh, render.Instance{
+					transform = m,
+					texture = {100, 1},
+					entity_id = -1,
+				})
 			}
 		}
 
@@ -428,11 +448,21 @@ mouse_button_callback :: proc "c" (window: glfw.WindowHandle, button, action, mo
 key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods: i32) {
 	context = runtime.default_context()
 
-	if key == glfw.KEY_R && action == glfw.PRESS {
-		game.fire_ball()
-	}
-
 	when ODIN_DEBUG {
+		// Adjust timescale with < and  >.
+		if key == glfw.KEY_COMMA && action == glfw.PRESS {
+			timescale_i -= 1
+		} else if key == glfw.KEY_PERIOD && action == glfw.PRESS {
+			timescale_i += 1
+		}
+		timescale_i = clamp(timescale_i, 0, len(TIMESCALES) - 1)
+
+		if key == glfw.KEY_R && action == glfw.PRESS {
+			ball_id := game.fire_ball()
+			gui.state.entity_id = ball_id
+			gui.state.entity_type = .Entity
+		}
+
 		if key == glfw.KEY_S && mods == glfw.MOD_CONTROL && action == glfw.PRESS {
 			game.world_save_to_file("config.json")
 		}
@@ -440,6 +470,8 @@ key_callback :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods
 		if key == glfw.KEY_F1 && action == glfw.PRESS {
 			gui.state.editor_mode = !gui.state.editor_mode
 		}
+
+		// Open console with backtick (`).
 		if key == glfw.KEY_GRAVE_ACCENT && action == glfw.PRESS {
 			gui.state.console.visible = !gui.state.console.visible
 			if !gui.state.console.visible {
